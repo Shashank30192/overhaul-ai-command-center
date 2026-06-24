@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Overhaul AI Command Center
+
+AI-powered supply chain risk intelligence platform — predict theft, prevent fraud, and protect high-value cargo before incidents occur.
+
+Built with Next.js 15 (App Router), TypeScript, TailwindCSS, Framer Motion, Recharts, and React Leaflet.
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## AI configuration (Anthropic / Claude)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The platform runs in two modes:
 
-## Learn More
+| | Without API key | With `ANTHROPIC_API_KEY` |
+|---|---|---|
+| **Copilot chat** | Deterministic mock responses | **Claude Haiku**, streamed, with tool-calling |
+| **Executive briefing** | Static recommendations | **Claude Sonnet** reasoning over live portfolio |
+| **Incident report** | Template report | **Claude Sonnet** root-cause + recommendations |
+| **Route advice** | Static routes | **Claude Sonnet** safer/cheaper/faster options |
 
-To learn more about Next.js, take a look at the following resources:
+To enable real AI, copy `.env.example` to `.env.local` and add your key:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+ANTHROPIC_API_KEY=sk-ant-...
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Get a key at [console.anthropic.com](https://console.anthropic.com/).
 
-## Deploy on Vercel
+### Why this model split is efficient
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- **Haiku for chat** — cheap and fast for high-volume Q&A.
+- **Sonnet only for hard reasoning** — briefings, root-cause, route planning.
+- **Tool-calling, not prompt-stuffing** — Claude queries the dataset via tools
+  (`get_top_risk_shipments`, `get_fraud_cases`, etc.) in `src/lib/ai/tools.ts`,
+  so we never send 500 shipments into a prompt.
+- **Numeric risk scoring stays deterministic** — LLMs are not used for math;
+  risk/theft scores come from the data layer. In production these would be a
+  classical ML model (e.g. gradient-boosted trees), reserving the LLM for language.
+- **Graceful fallback** — if a call fails or no key is set, mock logic keeps the demo alive.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Architecture
+
+```
+src/
+  app/
+    api/            # Mock + AI-backed API routes
+      copilot/      # Streaming Claude chat (Haiku)
+      executive-briefing/, incident-report/, route-advice/  # Sonnet
+      shipments/, carriers/, locations/, fraud/, risk/      # Data APIs
+    (pages)/        # Home, platform, copilot, risk, fraud, digital-twin, executive, contact
+  components/       # UI, layout, feature components
+  lib/
+    ai/             # anthropic client, tools, agent loop
+    data/           # Seeded demo data generator (500 shipments, 50 carriers, ...)
+    mock/           # Deterministic fallback copilot responses
+```

@@ -1,26 +1,138 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Military green — global Overhaul palette */
+  --background: #161b16;
+  --foreground: #e8ebe8;
+  --accent: #2563eb;
+  --accent-muted: #1d4ed8;
+  --card: #1c221c;
+  --border: rgba(255, 255, 255, 0.08);
+
+  --mil-bg: #161b16;
+  --mil-surface: #1c221c;
+  --mil-panel: #222a22;
+  --mil-elevated: #2a332a;
+  --mil-border: rgba(255, 255, 255, 0.08);
+  --mil-text: #e8ebe8;
+  --mil-muted: #8a948a;
+  --mil-blue: #2563eb;
+  --mil-blue-dark: #1e3a5f;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-accent: var(--accent);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.35);
+  border-radius: 3px;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--mil-bg);
+  color: var(--mil-text);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.glass {
+  background: var(--mil-surface);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--mil-border);
+}
+
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(37, 99, 235, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.glow-green {
+  box-shadow: 0 0 60px rgba(37, 99, 235, 0.12);
+}
+
+.leaflet-container {
+  background: #1a2418 !important;
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--mil-panel);
+  color: var(--mil-text);
+  border-radius: 8px;
+  border: 1px solid var(--mil-border);
+}
+
+.leaflet-popup-tip {
+  background: var(--mil-panel);
+}
+
+/* ── Shared app panels (Overhaul dashboard style) ── */
+.app-panel,
+.risk-panel {
+  background: var(--mil-panel);
+  border-color: var(--mil-border);
+}
+
+.app-card,
+.risk-card {
+  background: var(--mil-surface);
+  border: 1px solid var(--mil-border);
+  border-radius: 6px;
+}
+
+.app-card-active,
+.risk-card-active {
+  background: var(--mil-blue);
+  border-color: #3b82f6;
+}
+
+.app-pill,
+.risk-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.125rem 0.625rem;
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+}
+
+.risk-monitor-theme {
+  background: var(--mil-bg);
+  color: var(--mil-text);
+}
+
+body:has(#risk-monitor-page) footer,
+body:has(#risk-monitor-page) #alert-ticker {
+  display: none;
+}
+
+body:has(#risk-monitor-page) main {
+  padding-top: 4rem;
+}
+
+.risk-map-tint .leaflet-container {
+  background: #1a2418 !important;
+  filter: sepia(0.25) hue-rotate(55deg) saturate(0.85) brightness(0.75);
 }
