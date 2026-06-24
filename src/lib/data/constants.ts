@@ -94,6 +94,7 @@ export const NAV_LINKS = [
   { href: "/copilot", label: "AI Copilot" },
   { href: "/risk", label: "Risk Monitor" },
   { href: "/agent", label: "⚡ AI Agent" },
+  { href: "/self-service", label: "🤖 Self-Service" },
   { href: "/fraud", label: "Fraud Detection" },
   { href: "/digital-twin", label: "Digital Twin" },
   { href: "/executive", label: "Executive" },
