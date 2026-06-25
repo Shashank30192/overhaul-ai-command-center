@@ -96,6 +96,7 @@ export const NAV_LINKS = [
   { href: "/agent", label: "⚡ AI Agent" },
   { href: "/self-service", label: "🤖 Self-Service" },
   { href: "/fraud", label: "Fraud Detection" },
+  { href: "/fraud-watch", label: "🛡️ Fraud Watch" },
   { href: "/digital-twin", label: "Digital Twin" },
   { href: "/executive", label: "Executive" },
   { href: "/contact", label: "Contact" },

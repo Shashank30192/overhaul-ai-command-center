@@ -101,7 +101,7 @@ function renderMd(text: string) {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export function SelfServiceAgent() {
+export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
@@ -281,7 +281,7 @@ export function SelfServiceAgent() {
   const isIdle = !run;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+    <div className={`flex overflow-hidden ${embedded ? "h-full" : "h-[calc(100vh-4rem)]"}`}>
       {/* ── Left: Customer Chat Panel ── */}
       <div className="w-[420px] shrink-0 border-r border-[var(--mil-border)] flex flex-col bg-[var(--mil-panel)]">
         {/* Header */}

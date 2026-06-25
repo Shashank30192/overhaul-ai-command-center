@@ -1,5 +1,5 @@
-import { SelfServiceAgent } from "@/components/self-service/self-service-agent";
+import { SSCommandCenter } from "@/components/self-service/ss-command-center";
 
 export default function SelfServicePage() {
-  return <SelfServiceAgent />;
+  return <SSCommandCenter />;
 }
