@@ -36,8 +36,8 @@ export function BrandLogo({ size = "md", showTagline = false, className }: Brand
         priority
       />
       {showTagline && (
-        <span className="ml-1 hidden sm:block text-[10px] text-blue-400 font-medium leading-tight">
-          AI Command Center
+        <span className="ml-1 hidden sm:block text-[10px] text-[var(--mil-muted)] font-medium leading-tight">
+          Research Prototype
         </span>
       )}
     </div>

@@ -21,13 +21,13 @@ export function Navbar() {
           <BrandLogo size="sm" showTagline />
         </Link>
 
-        <nav className="hidden lg:flex items-center gap-1">
+        <nav className="hidden lg:flex items-center gap-0.5">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
               className={cn(
-                "px-3 py-2 text-sm rounded-lg transition-colors",
+                "px-2.5 py-1.5 text-[13px] rounded-lg transition-colors whitespace-nowrap",
                 pathname === link.href
                   ? "text-white bg-[var(--mil-blue)]"
                   : "text-[var(--mil-muted)] hover:text-white hover:bg-[var(--mil-elevated)]"
