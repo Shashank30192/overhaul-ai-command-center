@@ -108,7 +108,7 @@ export function AgentViewport({
             transition={{ duration: 0.25 }}
             className="absolute inset-0"
           >
-            {getScreen(currentScreen)}
+            {getScreen(currentScreen, actionLabel)}
           </motion.div>
         </AnimatePresence>
 
@@ -140,32 +140,21 @@ export function AgentViewport({
           </motion.div>
         )}
 
-        {/* Highlight box around target */}
-        {!isIdle && activeHotspot && (
+        {/* Click pulse on target element — small precise dot, no floating box */}
+        {!isIdle && isClicking && activeHotspot && (
           <motion.div
-            className="absolute pointer-events-none z-20"
-            animate={{
-              left: `${activeHotspot.x - 8}%`,
-              top: `${activeHotspot.y - 6}%`,
-              width: "18%",
-              height: "12%",
+            className="absolute pointer-events-none z-20 rounded-full border-2 border-blue-300"
+            style={{
+              left: `${activeHotspot.x}%`,
+              top: `${activeHotspot.y}%`,
+              width: 28,
+              height: 28,
+              transform: "translate(-50%, -50%)",
             }}
-            transition={{ type: "spring", stiffness: 200, damping: 24 }}
-          >
-            <motion.div
-              className="w-full h-full rounded border-2 border-blue-400"
-              animate={{ opacity: [0.6, 1, 0.6] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-            />
-            {/* Label tooltip */}
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="absolute -bottom-5 left-0 whitespace-nowrap text-[9px] bg-blue-600 text-white px-1.5 py-0.5 rounded"
-            >
-              {activeHotspot.label}
-            </motion.div>
-          </motion.div>
+            initial={{ scale: 0.5, opacity: 1 }}
+            animate={{ scale: 2, opacity: 0 }}
+            transition={{ duration: 0.45 }}
+          />
         )}
 
         {/* Click ripples */}
