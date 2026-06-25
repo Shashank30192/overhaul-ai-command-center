@@ -77,7 +77,7 @@ export function AgentCommandCenter() {
   const activeMode = MODES.find((m) => m.id === mode)!;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* ── Left Sidebar ── */}
       <aside className="w-72 shrink-0 border-r border-[var(--mil-border)] bg-[var(--mil-panel)] flex flex-col">
         {/* Header */}

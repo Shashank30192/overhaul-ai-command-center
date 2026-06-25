@@ -348,81 +348,145 @@ const GET_RISK_REPORT = (query?: string): CustomerWorkflow => {
   };
 };
 
-const CHECK_CARRIER = (query?: string): CustomerWorkflow => {
-  const carrier = demoData.carriers?.[0] ?? { name: "Swift Logistics", mcNumber: "MC-483921", safetyRating: 4.2, fraudScore: 18, onTimeRate: 94, verified: true };
-  const s = pickShipment(query);
+const CHECK_CARRIER = (_query?: string): CustomerWorkflow => {
+  const carrierName = "Beacon Logistics LLC";
+  const mcNumber = "MC-294817";
+  const dotNumber = "DOT-1847392";
   return {
     id: "carrier-info",
-    intentPatterns: ["carrier", "driver", "trucker", "transport", "company", "verify", "check carrier"],
+    intentPatterns: ["carrier", "driver", "trucker", "transport", "company", "verify", "check carrier", "credentials"],
     title: "Verify Carrier",
     steps: [
       {
-        screen: "risk-monitor",
+        screen: "home",
         actions: [
           {
             type: "navigate",
-            targetLabel: "Risk Monitor",
+            targetLabel: "Fraud Watch",
             targetHint: "Nav link",
             durationMs: 900,
-            thought: "Navigating to Risk Monitor to access carrier information for this shipment.",
+            thought: "I need to run a full Bad Actor Check on this carrier. Navigating to the Fraud Watch dashboard.",
+          },
+        ],
+      },
+      {
+        screen: "fraud-dashboard",
+        actions: [
+          {
+            type: "click",
+            targetLabel: "Carrier search box",
+            targetHint: "Search input",
+            durationMs: 700,
+            thought: "I'll search for the carrier by name to pull up their profile.",
+          },
+          {
+            type: "type",
+            targetLabel: `"${carrierName}"`,
+            targetHint: "Typing carrier name",
+            durationMs: 1100,
+            thought: `Typing "${carrierName}" to locate the carrier record.`,
           },
           {
             type: "click",
-            targetLabel: `Carrier: ${s.carrierName}`,
-            targetHint: "Carrier card",
+            targetLabel: "Beacon Logistics — MC-294817",
+            targetHint: "Carrier result",
             durationMs: 800,
-            thought: `I can see the carrier is ${s.carrierName}. I'll open the carrier profile.`,
+            thought: "Found the carrier. Clicking to open and run Bad Actor Check.",
+          },
+          {
+            type: "read",
+            targetLabel: "USDOT lookup result",
+            targetHint: "Check row",
+            durationMs: 1200,
+            thought: `USDOT lookup returned: ${dotNumber} — Active carrier status. ✓`,
+          },
+          {
+            type: "read",
+            targetLabel: "Name cross-reference result",
+            targetHint: "Check row",
+            durationMs: 1000,
+            thought: "Cross-referencing carrier name against known fraud aliases. No matches found. ✓",
+          },
+          {
+            type: "read",
+            targetLabel: "Insurance check result",
+            targetHint: "Check row",
+            durationMs: 900,
+            thought: "Insurance coverage verified: $1M liability policy active through December 2025. ✓",
+          },
+          {
+            type: "read",
+            targetLabel: "First officer review",
+            targetHint: "Check row",
+            durationMs: 1100,
+            thought: "First officer review flagged a prior incident from 2021 — minor, no pattern of misconduct. Noted.",
+          },
+          {
+            type: "read",
+            targetLabel: "Composite risk score",
+            targetHint: "Score card",
+            durationMs: 900,
+            thought: "Composite fraud risk score: 18% — LOW RISK. 5 of 6 checks passed, 1 advisory warning.",
           },
         ],
+        resultSnippet: "Fraud checks: 5 pass, 1 warning",
       },
       {
         screen: "carrier-profile",
         actions: [
           {
-            type: "read",
-            targetLabel: "Carrier safety rating",
-            targetHint: "Rating panel",
-            durationMs: 1000,
-            thought: `Reading carrier profile: safety rating ${carrier.safetyRating}/5, fraud score ${carrier.fraudScore}%.`,
+            type: "click",
+            targetLabel: "Open full carrier profile",
+            targetHint: "View profile link",
+            durationMs: 700,
+            thought: "Opening the full carrier profile to review safety ratings and certifications.",
           },
           {
             type: "read",
-            targetLabel: "Compliance & certifications",
-            targetHint: "Compliance section",
+            targetLabel: "Safety & performance ratings",
+            targetHint: "Stats row",
             durationMs: 1100,
-            thought: "Checking MC number verification, FMCSA compliance, and certification status.",
+            thought: "Safety rating 4.2/5, on-time rate 94%, 847 completed shipments. Solid track record.",
           },
           {
-            type: "hover",
-            targetLabel: "On-time performance graph",
-            targetHint: "Performance chart",
-            durationMs: 800,
-            thought: `On-time rate: ${carrier.onTimeRate}%. Within acceptable thresholds.`,
+            type: "read",
+            targetLabel: "FMCSA credential checks",
+            targetHint: "Credential list",
+            durationMs: 1200,
+            thought: `MC authority (${mcNumber}) active, address confirmed in Dallas TX, phone verified.`,
+          },
+          {
+            type: "read",
+            targetLabel: "Certifications — TAPA, ISO, C-TPAT",
+            targetHint: "Certs list",
+            durationMs: 900,
+            thought: "TAPA TSR Level 1, ISO 28000, and C-TPAT certified. All current and valid.",
           },
         ],
-        resultSnippet: `${carrier.name} — ${carrier.verified ? "Verified" : "Unverified"}`,
+        resultSnippet: "Safety 4.2/5 · On-time 94%",
       },
     ],
     finalResult: {
       type: "carrier-info",
-      headline: `Carrier Profile — ${s.carrierName}`,
+      headline: `Carrier Verified — ${carrierName}`,
       data: {
-        "Carrier Name": s.carrierName,
-        "MC Number": carrier.mcNumber,
-        "FMCSA Status": carrier.verified ? "✓ Active & Verified" : "⚠ Pending Review",
-        "Safety Rating": `${carrier.safetyRating}/5.0`,
-        "Fraud Risk Score": `${carrier.fraudScore}%`,
-        "On-Time Rate": `${carrier.onTimeRate}%`,
-        "Total Shipments": carrier.totalShipments ?? 847,
-        "Insurance": "Valid through Dec 2025",
-        "Last Audit": "14 days ago",
+        "Carrier Name": carrierName,
+        "MC Number": mcNumber,
+        "DOT Number": dotNumber,
+        "FMCSA Status": "✓ Active & Verified",
+        "Safety Rating": "4.2 / 5.0",
+        "Fraud Risk Score": "18% — LOW",
+        "On-Time Rate": "94%",
+        "Insurance": "✓ Valid through Dec 2025",
+        "Certifications": "TAPA · ISO 28000 · C-TPAT",
+        "Bad Actor Check": "5 pass · 1 advisory",
       },
       actions: [
         { label: "Download Carrier Report", variant: "primary" },
+        { label: "Approve for Shipment", variant: "primary" },
         { label: "Flag for Review", variant: "secondary" },
-        { label: carrier.verified ? "Re-verify Carrier" : "Initiate Verification", variant: carrier.fraudScore > 50 ? "danger" : "secondary" },
       ],
-      message: `Carrier **${s.carrierName}** is ${carrier.verified ? "verified and active" : "pending verification"} with a safety rating of **${carrier.safetyRating}/5**. On-time performance: **${carrier.onTimeRate}%**. Fraud risk score: **${carrier.fraudScore}%** (${carrier.fraudScore < 30 ? "Low" : carrier.fraudScore < 60 ? "Medium" : "High"}). ${carrier.fraudScore > 50 ? "⚠ Carrier flagged for enhanced monitoring." : "No fraud flags detected."}`,
+      message: `Carrier **${carrierName}** passed the Bad Actor Check with a fraud risk score of **18% (LOW)**. FMCSA status is **active and verified** (${mcNumber} · ${dotNumber}). Safety rating: **4.2/5** · On-time rate: **94%** across 847 shipments. One advisory: a minor first officer incident from 2021 with no subsequent violations. **Carrier is approved for use.**`,
     },
   };
 };
@@ -514,7 +578,7 @@ export function resolveWorkflow(input: string): CustomerWorkflow {
   // Check specific intent patterns
   if (/incident|file|claim|issue|problem|damaged|stolen|missing|lost/.test(lower)) return FILE_INCIDENT(input);
   if (/risk|report|analysis|assessment|score|safety|danger|threat/.test(lower)) return GET_RISK_REPORT(input);
-  if (/carrier|driver|trucker|transport|verify|check carrier/.test(lower)) return CHECK_CARRIER(input);
+  if (/carrier|driver|trucker|transport|verify|check carrier|credentials/.test(lower)) return CHECK_CARRIER(input);
   if (/eta|when|arrive|arrival|delivery|how long|expected/.test(lower)) return GET_ETA(input);
   if (/track|where is|locate|status|shipment|cargo|find/.test(lower)) return TRACK_SHIPMENT(input);
 

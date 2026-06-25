@@ -323,48 +323,145 @@ export function CarrierProfileScreen() {
   return (
     <div className="h-full bg-[#161b16] text-white flex flex-col">
       <MiniNavbar activePage="Risk Monitor" />
-      <div className="flex-1 p-3 space-y-2 overflow-hidden">
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-[8px] font-semibold text-white">Swift Logistics</p>
-            <p className="text-[6px] text-white/40">MC-483921 · FMCSA Verified</p>
-          </div>
-          <div className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded px-1.5 py-0.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-            <span className="text-[6px] text-emerald-300">Verified</span>
-          </div>
+      {/* Header */}
+      <div className="px-2 py-1.5 bg-[#222a22] border-b border-white/8 flex items-center justify-between">
+        <div>
+          <p className="text-[8px] font-semibold text-white">Beacon Logistics LLC</p>
+          <p className="text-[6px] text-white/40">MC-294817 · DOT-1847392 · Active since 2009</p>
         </div>
-        <div className="grid grid-cols-3 gap-1.5">
+        <div className="flex items-center gap-1 bg-emerald-500/20 border border-emerald-500/30 rounded px-1.5 py-0.5">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="text-[6px] text-emerald-300">FMCSA Verified</span>
+        </div>
+      </div>
+      <div className="flex-1 flex min-h-0">
+        {/* Left: stats */}
+        <div className="w-24 bg-[#1e261e] border-r border-white/8 p-1.5 space-y-1.5 shrink-0">
           {[
             { label: "Safety Rating", val: "4.2/5", color: "text-emerald-300" },
             { label: "Fraud Score", val: "18%", color: "text-emerald-300" },
-            { label: "On-Time", val: "94%", color: "text-blue-300" },
+            { label: "On-Time Rate", val: "94%", color: "text-blue-300" },
+            { label: "Fleet Size", val: "142", color: "text-white/70" },
+            { label: "Shipments", val: "847", color: "text-white/70" },
           ].map((stat) => (
-            <div key={stat.label} className="bg-[#1c221c] border border-white/8 rounded p-1.5 text-center">
+            <div key={stat.label} className="bg-[#1c221c] border border-white/8 rounded p-1">
               <p className={cn("text-[8px] font-bold", stat.color)}>{stat.val}</p>
               <p className="text-[5px] text-white/30">{stat.label}</p>
             </div>
           ))}
         </div>
-        <div className="space-y-1">
-          <p className="text-[6px] font-semibold text-white/60">Recent Shipments</p>
-          {[92, 78, 45, 61].map((score, i) => (
-            <div key={i} className="flex items-center gap-2 bg-[#1c221c] rounded border border-white/8 p-1">
-              <Truck className="h-2.5 w-2.5 text-white/30 shrink-0" />
-              <div className="flex-1 h-1 bg-white/10 rounded overflow-hidden">
-                <div className="h-full bg-blue-500 rounded" style={{ width: `${score}%` }} />
+        {/* Right: checks + certs */}
+        <div className="flex-1 p-1.5 space-y-1.5 overflow-hidden">
+          <p className="text-[6px] font-semibold text-white/60 uppercase tracking-wide">Credential Checks</p>
+          {[
+            { label: "USDOT Registration", status: "pass", val: "DOT-1847392 Active" },
+            { label: "MC Authority", status: "pass", val: "MC-294817 Common Carrier" },
+            { label: "Insurance Coverage", status: "pass", val: "$1M liability · Valid Dec 2025" },
+            { label: "Name Cross-Reference", status: "pass", val: "No aliases detected" },
+            { label: "First Officer", status: "warn", val: "1 prior incident (2021)" },
+            { label: "Address Validation", status: "pass", val: "Dallas, TX — confirmed" },
+          ].map((c) => (
+            <div key={c.label} className="flex items-center gap-1.5 bg-[#1c221c] border border-white/8 rounded px-1.5 py-1">
+              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", c.status === "pass" ? "bg-emerald-400" : "bg-amber-400")} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[5px] text-white/50">{c.label}</p>
+                <p className="text-[6px] text-white/80 truncate">{c.val}</p>
               </div>
-              <span className="text-[5px] text-white/40">{score}% OT</span>
+              <span className={cn("text-[5px] font-bold uppercase", c.status === "pass" ? "text-emerald-400" : "text-amber-400")}>
+                {c.status === "pass" ? "✓" : "!"}
+              </span>
             </div>
           ))}
-        </div>
-        <div className="space-y-1">
-          <p className="text-[6px] font-semibold text-white/60">Certifications</p>
+          <p className="text-[6px] font-semibold text-white/60 uppercase tracking-wide pt-1">Certifications</p>
           {["TAPA TSR Level 1", "ISO 28000", "C-TPAT Certified"].map((c) => (
             <div key={c} className="flex items-center gap-1 text-[5px] text-emerald-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />{c}
             </div>
           ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function FraudCheckScreen() {
+  const checks = [
+    { label: "Address Verification", status: "pass", detail: "Dallas, TX 75201 — confirmed" },
+    { label: "USDOT Lookup", status: "pass", detail: "DOT-1847392 Active carrier" },
+    { label: "Name Cross-Reference", status: "pass", detail: "No aliases or DBA matches" },
+    { label: "Phone Verification", status: "pass", detail: "+1 (214) 555-0182 — valid" },
+    { label: "Insurance Check", status: "pass", detail: "$1M liability, valid" },
+    { label: "First Officer Review", status: "warn", detail: "1 prior incident flagged" },
+  ];
+  return (
+    <div className="h-full bg-[#161b16] text-white flex flex-col">
+      <MiniNavbar activePage="Fraud" />
+      {/* Sub-header */}
+      <div className="px-2 py-1.5 bg-[#222a22] border-b border-white/8 flex items-center gap-2">
+        <span className="text-[7px] font-semibold text-white">Fraud Watch</span>
+        <span className="text-[6px] text-white/40">·</span>
+        <span className="text-[6px] text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded-full">Bad Actor Check</span>
+        <div className="ml-auto flex items-center gap-1 text-[5px] text-emerald-300">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          Running checks…
+        </div>
+      </div>
+      <div className="flex flex-1 min-h-0">
+        {/* Carrier list sidebar */}
+        <div className="w-28 bg-[#1e261e] border-r border-white/8 flex flex-col">
+          <div className="p-1.5 border-b border-white/8">
+            <div className="h-4 bg-[#1c221c] border border-white/8 rounded flex items-center px-1">
+              <Search className="h-2 w-2 text-white/30 mr-1" />
+              <span className="text-[5px] text-white/40">Beacon Logistics</span>
+            </div>
+          </div>
+          <div className="flex-1 p-1 space-y-1">
+            {[
+              { name: "Beacon Logistics", score: 18, active: true },
+              { name: "Swift Transport", score: 34, active: false },
+              { name: "United Freight", score: 72, active: false },
+            ].map((c) => (
+              <div key={c.name} className={cn("rounded p-1 border", c.active ? "bg-[#1e3a5f] border-blue-400/40" : "bg-[#1c221c] border-white/8")}>
+                <p className="text-[6px] font-medium text-white truncate">{c.name}</p>
+                <div className="flex items-center justify-between mt-0.5">
+                  <span className="text-[5px] text-white/30">Risk</span>
+                  <span className={cn("text-[5px] font-bold", c.score < 30 ? "text-emerald-400" : c.score < 60 ? "text-amber-400" : "text-red-400")}>{c.score}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Check results */}
+        <div className="flex-1 p-2 space-y-1.5 overflow-hidden">
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[7px] font-semibold text-white">Beacon Logistics LLC</p>
+            <span className="text-[5px] text-white/40">MC-294817</span>
+          </div>
+          {checks.map((c, i) => (
+            <div key={c.label} className={cn(
+              "flex items-start gap-1.5 rounded border px-1.5 py-1",
+              c.status === "pass" ? "border-emerald-500/20 bg-emerald-500/5" : "border-amber-500/30 bg-amber-500/8"
+            )}>
+              <span className={cn("h-1.5 w-1.5 rounded-full mt-0.5 shrink-0", c.status === "pass" ? "bg-emerald-400" : "bg-amber-400 animate-pulse")} />
+              <div className="flex-1 min-w-0">
+                <p className="text-[5px] text-white/50">{c.label}</p>
+                <p className="text-[6px] text-white/80">{c.detail}</p>
+              </div>
+              <span className={cn("text-[5px] font-bold shrink-0", c.status === "pass" ? "text-emerald-400" : "text-amber-400")}>
+                {c.status === "pass" ? "PASS" : "WARN"}
+              </span>
+            </div>
+          ))}
+          {/* Overall score */}
+          <div className="mt-1.5 bg-[#1c221c] border border-white/10 rounded p-1.5 flex items-center justify-between">
+            <div>
+              <p className="text-[5px] text-white/40">Composite Fraud Risk</p>
+              <p className="text-[8px] font-bold text-emerald-300">18% — LOW RISK</p>
+            </div>
+            <div className="h-8 w-8 rounded-full border-2 border-emerald-500 bg-emerald-500/10 flex items-center justify-center">
+              <span className="text-[7px] font-bold text-emerald-300">18</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -473,6 +570,7 @@ export function getScreen(id: ScreenId): React.ReactNode {
     case "riskgpt-chat": return <RiskGptChatScreen />;
     case "incident-form": return <IncidentFormScreen />;
     case "carrier-profile": return <CarrierProfileScreen />;
+    case "fraud-dashboard": return <FraudCheckScreen />;
     case "digital-twin": return <DigitalTwinScreen />;
     case "executive-report": return <ExecutiveReportScreen />;
     default: return <HomeScreen />;
@@ -524,10 +622,21 @@ export const SCREEN_HOTSPOTS: Partial<Record<ScreenId, Hotspot[]>> = {
     { x: 30, y: 78, label: "Submit button" },
   ],
   "carrier-profile": [
-    { x: 33, y: 35, label: "Safety rating" },
-    { x: 50, y: 35, label: "Fraud score" },
-    { x: 67, y: 35, label: "On-time rate" },
-    { x: 50, y: 60, label: "Certifications" },
+    { x: 33, y: 32, label: "Safety rating" },
+    { x: 50, y: 32, label: "Fraud score" },
+    { x: 67, y: 32, label: "On-time rate" },
+    { x: 65, y: 52, label: "Credential checks" },
+    { x: 65, y: 65, label: "USDOT status" },
+    { x: 65, y: 78, label: "Certifications" },
+  ],
+  "fraud-dashboard": [
+    { x: 20, y: 25, label: "Carrier search" },
+    { x: 20, y: 45, label: "Beacon Logistics" },
+    { x: 65, y: 38, label: "USDOT lookup" },
+    { x: 65, y: 48, label: "Name cross-reference" },
+    { x: 65, y: 58, label: "Insurance check" },
+    { x: 65, y: 68, label: "First officer review" },
+    { x: 65, y: 80, label: "Composite risk score" },
   ],
   "digital-twin": [
     { x: 40, y: 45, label: "Shipment marker" },

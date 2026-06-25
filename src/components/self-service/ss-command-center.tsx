@@ -80,7 +80,7 @@ export function SSCommandCenter() {
   const activeMode = MODES.find((m) => m.id === mode)!;
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden">
+    <div className="flex h-full overflow-hidden">
       {/* ── Left Sidebar ── (exact mirror of AgentCommandCenter) */}
       <aside className="w-72 shrink-0 border-r border-[var(--mil-border)] bg-[var(--mil-panel)] flex flex-col">
         {/* Header */}
@@ -221,15 +221,15 @@ export function SSCommandCenter() {
         </div>
 
         {/* Panel */}
-        <div className="flex-1 min-h-0">
-          <AnimatePresence mode="wait">
+        <div className="flex-1 min-h-0 relative">
+          <AnimatePresence>
             <motion.div
               key={mode}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.2 }}
-              className="h-full"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="h-full absolute inset-0"
             >
               {mode === "helpbot" && <SSHelpBotPanel />}
               {mode === "navigator" && <SSNavigatorPanel />}

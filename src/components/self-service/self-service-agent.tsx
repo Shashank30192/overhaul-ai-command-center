@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, RotateCcw, Bot, CheckCircle2, Loader2, Cpu,
-  ArrowRight, Zap, MessageSquare, ChevronRight,
+  ArrowRight, Zap, ChevronRight, AlertTriangle, Clock,
+  Thermometer, ShieldCheck, FileText, Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -14,6 +15,7 @@ import {
   type WorkflowResult,
   type ScreenId,
 } from "@/lib/mock/self-service-workflows";
+import { CUSTOMER, CUSTOMER_SHIPMENTS } from "@/lib/mock/self-service-mock";
 import { SCREEN_HOTSPOTS, type Hotspot } from "./workflow-screens";
 import { AgentViewport } from "./agent-viewport";
 
@@ -115,16 +117,17 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   const abortRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const scrollBottom = useCallback(() => {
-    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 60);
+  const scrollBottom = useCallback((smooth = true) => {
+    setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" }), 60);
   }, []);
 
   const addMessage = useCallback((msg: Omit<ChatMessage, "id">) => {
     setMessages((prev) => [...prev, { ...msg, id: `msg-${Date.now()}-${Math.random()}` }]);
-    scrollBottom();
+    // Only scroll for user messages and system completion messages — not mid-workflow agent updates
+    if (msg.role === "user" || msg.role === "system") scrollBottom();
   }, [scrollBottom]);
 
-  const updateLastAgent = useCallback((content: string) => {
+  const updateLastAgent = useCallback((content: string, scrollAfter = false) => {
     setMessages((prev) => {
       const last = prev[prev.length - 1];
       if (last?.role === "agent" && last.partial) {
@@ -132,7 +135,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       }
       return prev;
     });
-    scrollBottom();
+    if (scrollAfter) scrollBottom();
   }, [scrollBottom]);
 
   const executeWorkflow = useCallback(async (goal: string) => {
@@ -217,11 +220,9 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
         globalStep++;
       }
 
-      // Show result snippet mid-workflow
+      // Show result snippet mid-workflow — no scroll, let the viewport be the focus
       if (workflowStep.resultSnippet) {
-        updateLastAgent(
-          `${workflow.title}: working… (${workflowStep.resultSnippet})`
-        );
+        updateLastAgent(`${workflow.title}: working… (${workflowStep.resultSnippet})`);
       }
     }
 
@@ -239,22 +240,20 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     } : null);
 
     setResult(workflow.finalResult);
-    updateLastAgent(workflow.finalResult.message);
+    updateLastAgent(workflow.finalResult.message, true); // scroll only now — task done
 
     addMessage({
       role: "system",
       content: `✓ Task complete in ${Math.round(totalSteps * 1.2)}s — ${totalSteps} actions executed across ${workflow.steps.length} pages`,
     });
-
-    scrollBottom();
   }, [addMessage, updateLastAgent, scrollBottom]);
 
-  const handleSend = useCallback(() => {
-    const trimmed = input.trim();
+  const handleSend = useCallback((overrideText?: string) => {
+    const trimmed = (overrideText ?? input).trim();
     if (!trimmed || (run?.phase === "running")) return;
     setInput("");
     setResult(null);
-    abortRef.current = true; // cancel any existing run
+    abortRef.current = true;
 
     addMessage({ role: "user", content: trimmed });
     setTimeout(() => void executeWorkflow(trimmed), 400);
@@ -272,10 +271,8 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     }]);
   }, []);
 
-  // Auto-scroll when messages change
-  useEffect(() => {
-    scrollBottom();
-  }, [messages, scrollBottom]);
+  // Removed: was auto-scrolling on every message change, causing the view to
+  // jump to the bottom on every mid-workflow partial update during navigation.
 
   const isRunning = run?.phase === "running";
   const isIdle = !run;
@@ -283,22 +280,24 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   return (
     <div className={`flex overflow-hidden ${embedded ? "h-full" : "h-[calc(100vh-4rem)]"}`}>
       {/* ── Left: Customer Chat Panel ── */}
-      <div className="w-[420px] shrink-0 border-r border-[var(--mil-border)] flex flex-col bg-[var(--mil-panel)]">
+      <div className={`${embedded ? "w-[320px]" : "w-[420px]"} shrink-0 border-r border-[var(--mil-border)] flex flex-col bg-[var(--mil-panel)]`}>
         {/* Header */}
         <div className="shrink-0 px-5 py-4 border-b border-[var(--mil-border)]">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center">
-              <Cpu className="h-4.5 w-4.5 text-emerald-400" />
+            <div className="h-9 w-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center shrink-0">
+              <Cpu className="h-4 w-4 text-emerald-400" />
             </div>
-            <div>
-              <h1 className="text-sm font-semibold text-white">Overhaul Self-Service Agent</h1>
+            <div className="min-w-0">
+              <h1 className="text-sm font-semibold text-white truncate">
+                {embedded ? "Resolution Agent" : "Overhaul Self-Service Agent"}
+              </h1>
               <div className="flex items-center gap-1.5">
                 <span className={cn(
-                  "h-1.5 w-1.5 rounded-full",
+                  "h-1.5 w-1.5 rounded-full shrink-0",
                   isRunning ? "bg-blue-400 animate-pulse" : "bg-emerald-400"
                 )} />
-                <span className="text-[11px] text-[var(--mil-muted)]">
-                  {isRunning ? "Agent working…" : "Ready"}
+                <span className="text-[11px] text-[var(--mil-muted)] truncate">
+                  {isRunning ? "Navigating platform…" : embedded ? `${CUSTOMER.name} · Ready` : "Ready"}
                 </span>
               </div>
             </div>
@@ -385,23 +384,118 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
           <div ref={bottomRef} />
         </div>
 
-        {/* Suggestions */}
+        {/* Workflow panel — idle state */}
         {!isRunning && messages.length <= 2 && (
-          <div className="shrink-0 px-5 pb-3">
-            <p className="text-[10px] uppercase tracking-widest text-[var(--mil-muted)] mb-2">Quick requests:</p>
-            <div className="space-y-1.5">
-              {CUSTOMER_SUGGESTIONS.map((s) => (
-                <button
-                  key={s.text}
-                  onClick={() => { setInput(s.text); }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] text-[var(--mil-muted)] hover:text-white hover:border-emerald-500/30 transition-colors text-left text-xs"
-                >
-                  <span className="text-base">{s.icon}</span>
-                  {s.text}
-                  <ChevronRight className="h-3.5 w-3.5 ml-auto opacity-40" />
-                </button>
-              ))}
-            </div>
+          <div className="shrink-0 overflow-y-auto">
+            {embedded ? (
+              /* Customer-specific issue cards */
+              <div className="px-4 pb-3 space-y-2">
+                <p className="text-[10px] uppercase tracking-widest text-[var(--mil-muted)] mb-2 pt-3">Your active issues:</p>
+
+                {/* Tamper alert — high priority */}
+                {CUSTOMER_SHIPMENTS.filter(s => s.hasAlert).map(shp => (
+                  <button key={shp.id} onClick={() => handleSend(`Investigate tamper alert on ${shp.id} — ${shp.alertType}`)}
+                    className="w-full text-left rounded-xl border border-red-500/30 bg-red-500/5 p-3 hover:bg-red-500/10 transition-colors group">
+                    <div className="flex items-start gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-red-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <AlertTriangle className="h-3.5 w-3.5 text-red-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-xs font-semibold text-white">{shp.id}</p>
+                          <span className="text-[9px] font-bold text-red-400 bg-red-500/15 px-1.5 py-0.5 rounded uppercase tracking-wide">Alert</span>
+                        </div>
+                        <p className="text-[10px] text-red-300 mt-0.5">{shp.alertType}</p>
+                        <p className="text-[10px] text-[var(--mil-muted)] mt-0.5">{shp.cargo} · {shp.origin} → {shp.destination}</p>
+                      </div>
+                      <ChevronRight className="h-3.5 w-3.5 text-red-400/50 group-hover:text-red-400 shrink-0 mt-1.5 transition-colors" />
+                    </div>
+                    <p className="text-[10px] text-emerald-400 mt-2 flex items-center gap-1">
+                      <Cpu className="h-2.5 w-2.5" />
+                      Agent will investigate autonomously
+                    </p>
+                  </button>
+                ))}
+
+                {/* Delay warning */}
+                {CUSTOMER_SHIPMENTS.filter(s => s.status === "Minor Delay").map(shp => (
+                  <button key={shp.id} onClick={() => handleSend(`Check delivery status and delay reason for ${shp.id}`)}
+                    className="w-full text-left rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 hover:bg-amber-500/10 transition-colors group">
+                    <div className="flex items-start gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-amber-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <Clock className="h-3.5 w-3.5 text-amber-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-xs font-semibold text-white">{shp.id}</p>
+                          <span className="text-[9px] font-bold text-amber-400 bg-amber-500/15 px-1.5 py-0.5 rounded uppercase tracking-wide">Delay</span>
+                        </div>
+                        <p className="text-[10px] text-amber-300 mt-0.5">{shp.status}</p>
+                        <p className="text-[10px] text-[var(--mil-muted)] mt-0.5">{shp.cargo} · {shp.origin} → {shp.destination}</p>
+                      </div>
+                      <ChevronRight className="h-3.5 w-3.5 text-amber-400/50 group-hover:text-amber-400 shrink-0 mt-1.5 transition-colors" />
+                    </div>
+                    <p className="text-[10px] text-emerald-400 mt-2 flex items-center gap-1">
+                      <Cpu className="h-2.5 w-2.5" />
+                      Agent will check status and ETA
+                    </p>
+                  </button>
+                ))}
+
+                {/* Cold chain shipment */}
+                {CUSTOMER_SHIPMENTS.filter(s => s.coldChain && !s.hasAlert && s.status !== "Minor Delay").map(shp => (
+                  <button key={shp.id} onClick={() => handleSend(`Verify cold chain integrity for ${shp.id}`)}
+                    className="w-full text-left rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 hover:bg-blue-500/10 transition-colors group">
+                    <div className="flex items-start gap-2.5">
+                      <div className="h-7 w-7 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <Thermometer className="h-3.5 w-3.5 text-blue-400" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-xs font-semibold text-white">{shp.id}</p>
+                          <span className="text-[9px] font-bold text-blue-400 bg-blue-500/15 px-1.5 py-0.5 rounded uppercase tracking-wide">Cold Chain</span>
+                        </div>
+                        <p className="text-[10px] text-blue-300 mt-0.5">Temp: {shp.temperature}°C · On track</p>
+                        <p className="text-[10px] text-[var(--mil-muted)] mt-0.5">{shp.cargo} · {shp.origin} → {shp.destination}</p>
+                      </div>
+                      <ChevronRight className="h-3.5 w-3.5 text-blue-400/50 group-hover:text-blue-400 shrink-0 mt-1.5 transition-colors" />
+                    </div>
+                  </button>
+                ))}
+
+                {/* Quick actions */}
+                <p className="text-[10px] uppercase tracking-widest text-[var(--mil-muted)] mb-1.5 mt-3">Quick actions:</p>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {[
+                    { icon: ShieldCheck, label: "Verify carrier", query: "Verify my carrier's credentials", color: "text-emerald-400" },
+                    { icon: FileText, label: "Risk report", query: "Generate a risk report for my cargo", color: "text-purple-400" },
+                    { icon: Search, label: "Track shipment", query: "Where is my shipment?", color: "text-blue-400" },
+                    { icon: AlertTriangle, label: "File claim", query: "I need to file a damage claim", color: "text-amber-400" },
+                  ].map(a => (
+                    <button key={a.label} onClick={() => handleSend(a.query)}
+                      className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] hover:border-emerald-500/30 hover:text-white transition-colors text-left">
+                      <a.icon className={cn("h-3 w-3 shrink-0", a.color)} />
+                      <span className="text-[10px] text-[var(--mil-muted)] hover:text-white leading-tight">{a.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              /* Generic suggestions for standalone page */
+              <div className="px-5 pb-3">
+                <p className="text-[10px] uppercase tracking-widest text-[var(--mil-muted)] mb-2">Quick requests:</p>
+                <div className="space-y-1.5">
+                  {CUSTOMER_SUGGESTIONS.map((s) => (
+                    <button key={s.text} onClick={() => { setInput(s.text); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] text-[var(--mil-muted)] hover:text-white hover:border-emerald-500/30 transition-colors text-left text-xs">
+                      <span className="text-base">{s.icon}</span>
+                      {s.text}
+                      <ChevronRight className="h-3.5 w-3.5 ml-auto opacity-40" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

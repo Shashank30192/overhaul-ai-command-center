@@ -1,6 +1,9 @@
 export default function SelfServiceLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="-mx-4 sm:-mx-6 lg:-mx-8 -mt-8">
+    <div
+      className="fixed inset-x-0 bottom-0 overflow-hidden bg-[var(--mil-bg)] z-10"
+      style={{ top: "calc(4rem + 33px)" }}
+    >
       {children}
     </div>
   );
