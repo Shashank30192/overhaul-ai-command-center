@@ -606,15 +606,6 @@ const INVESTIGATE_CASE = (): CustomerWorkflow => ({
       ],
       resultSnippet: "Driver reached · Stop explained",
     },
-    {
-      screen: "case-notes",
-      actions: [
-        { type: "click", targetLabel: "Add Case Notes", durationMs: 600, thought: "Opening the case notes panel to document the investigation outcome." },
-        { type: "type", targetLabel: "Notes: driver confirmed routine fuel stop — no security incident", durationMs: 1400, thought: "Recording: Marcus Vinicius (driver) confirmed routine fuel stop near São Paulo. No threat detected. Call duration 4m 32s." },
-        { type: "click", targetLabel: "Save Notes & close alert", durationMs: 800, thought: "Saving investigation notes and closing the Light & Stop alert with Explained status." },
-      ],
-      resultSnippet: "Notes saved · Alert resolved",
-    },
   ],
   finalResult: {
     type: "general",
@@ -629,14 +620,13 @@ const INVESTIGATE_CASE = (): CustomerWorkflow => ({
       "Call Duration": "4m 32s",
       "Stop Reason": "Routine fuel stop",
       "Resolution": "Explained — no threat",
-      "Notes Saved": "Yes · Logged to case file",
     },
     actions: [
       { label: "View Case Report", variant: "primary" },
       { label: "Close Alert", variant: "secondary" },
       { label: "Escalate to Ops", variant: "secondary" },
     ],
-    message: `Light & Stop compound case for **OH-84764** has been investigated and resolved. Driver **Marcus Vinicius** confirmed a routine fuel stop near São Paulo — **no security threat detected**. Risk score updated: **98% → Explained**. Case notes saved and alert closed.`,
+    message: `Light & Stop compound case for **OH-84764** has been investigated and resolved. Driver **Marcus Vinicius** confirmed a routine fuel stop near São Paulo — **no security threat detected**. Risk score updated: **98% → Explained**.`,
   },
 });
 
