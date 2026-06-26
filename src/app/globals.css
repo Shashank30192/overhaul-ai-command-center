@@ -1,21 +1,21 @@
 @import "tailwindcss";
 
 :root {
-  /* Military green — global Overhaul palette */
-  --background: #161b16;
-  --foreground: #e8ebe8;
-  --accent: #2563eb;
-  --accent-muted: #1d4ed8;
-  --card: #1c221c;
-  --border: rgba(255, 255, 255, 0.08);
+  /* Overhaul dark theme — matches GSOC product palette */
+  --background: #0d0f10;
+  --foreground: #e5e7eb;
+  --accent: #00c2b2;
+  --accent-muted: #009e91;
+  --card: #181c1f;
+  --border: rgba(255, 255, 255, 0.07);
 
-  --mil-bg: #161b16;
-  --mil-surface: #1c221c;
-  --mil-panel: #222a22;
-  --mil-elevated: #2a332a;
-  --mil-border: rgba(255, 255, 255, 0.08);
-  --mil-text: #e8ebe8;
-  --mil-muted: #8a948a;
+  --mil-bg: #0d0f10;
+  --mil-surface: #181c1f;
+  --mil-panel: #111416;
+  --mil-elevated: #1e2428;
+  --mil-border: rgba(255, 255, 255, 0.07);
+  --mil-text: #e5e7eb;
+  --mil-muted: #6b7280;
   --mil-blue: #2563eb;
   --mil-blue-dark: #1e3a5f;
 }
@@ -30,7 +30,7 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(37, 99, 235, 0.35) transparent;
+  scrollbar-color: rgba(0, 194, 178, 0.3) transparent;
 }
 
 *::-webkit-scrollbar {
@@ -71,7 +71,7 @@ body {
 }
 
 .leaflet-container {
-  background: #1a2418 !important;
+  background: #0d1117 !important;
   font-family: inherit;
 }
 
