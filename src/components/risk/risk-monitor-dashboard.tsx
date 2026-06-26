@@ -136,7 +136,7 @@ export function RiskMonitorDashboard() {
   if (!selected) return null;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-4rem-33px)] overflow-hidden">
       {/* Sub-header */}
       <div className="risk-panel border-b px-4 py-3 shrink-0">
         <div className="flex flex-wrap items-center gap-4">
