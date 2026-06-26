@@ -468,9 +468,9 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
                     { icon: ShieldCheck, label: "Verify carrier", query: "Verify my carrier's credentials", color: "text-emerald-400" },
+                    { icon: AlertTriangle, label: "Investigate Light & Stop", query: "Investigate Light & Stop case OH-84764", color: "text-red-400" },
                     { icon: FileText, label: "Risk report", query: "Generate a risk report for my cargo", color: "text-purple-400" },
                     { icon: Search, label: "Track shipment", query: "Where is my shipment?", color: "text-blue-400" },
-                    { icon: AlertTriangle, label: "File claim", query: "I need to file a damage claim", color: "text-amber-400" },
                   ].map(a => (
                     <button key={a.label} onClick={() => handleSend(a.query)}
                       className="flex items-center gap-2 px-3 py-2 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] hover:border-emerald-500/30 hover:text-white transition-colors text-left">
@@ -511,7 +511,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
               className="flex-1 px-4 py-2.5 text-sm rounded-xl bg-[var(--mil-surface)] border border-[var(--mil-border)] text-white placeholder:text-[var(--mil-muted)] focus:outline-none focus:border-emerald-500/50 disabled:opacity-50"
             />
             <button
-              onClick={handleSend}
+              onClick={() => handleSend()}
               disabled={!input.trim() || isRunning}
               className="px-4 py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 transition-colors disabled:opacity-40"
             >

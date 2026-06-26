@@ -646,6 +646,244 @@ export function FraudCheckScreen({ interaction }: ScreenProps) {
   );
 }
 
+// ─── Case Detail Screen ───────────────────────────────────────────────────────
+
+export function CaseDetailScreen({ interaction }: ScreenProps) {
+  const callingDriver = !!interaction?.match(/call driver/i);
+  const readingTimeline = !!interaction?.match(/timeline|stopped|47 min|case/i);
+
+  return (
+    <div className="h-full bg-[#161b16] text-white flex flex-col">
+      <MiniNavbar activePage="Risk Monitor" interaction={interaction} />
+      {/* Case header */}
+      <div className="px-2 py-1.5 bg-[#222a22] border-b border-white/8 shrink-0">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <p className="text-[8px] font-semibold text-white">Light &amp; Stop (Compound)</p>
+            <p className="text-[6px] text-white/40">OH-84764 · São Paulo, Brazil → Chicago, USA</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-[6px] font-bold text-red-400 bg-red-500/20 px-1.5 py-0.5 rounded-full">Risk 98+</span>
+            <span className="text-[6px] text-amber-300 bg-amber-500/15 px-1.5 py-0.5 rounded-full">Investigating</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-1">
+          {[
+            { l: "Driver", v: "Marcus Vinicius", sub: "+55 11 9xxxx-xxxx" },
+            { l: "Stopped At", v: "01:00 AM", sub: "47 min elapsed" },
+            { l: "Battery", v: "92%", sub: "Device online" },
+          ].map(item => (
+            <div key={item.l} className="bg-[#1c221c] border border-white/8 rounded p-1">
+              <p className="text-[5px] text-white/30 uppercase">{item.l}</p>
+              <p className="text-[6px] font-medium text-white">{item.v}</p>
+              <p className="text-[5px] text-white/30">{item.sub}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-1 min-h-0">
+        {/* Left: timeline + actions */}
+        <div className="w-28 shrink-0 bg-[#222a22] border-r border-white/8 p-1.5 space-y-1.5 overflow-hidden">
+          <p className="text-[6px] font-semibold text-white/50 uppercase">Event Timeline</p>
+          {[
+            { evt: "Vehicle stopped", t: "01:00 AM", col: "text-red-400" },
+            { evt: "No check-in ping", t: "01:22 AM", col: "text-amber-400" },
+            { evt: "Alert triggered", t: "01:47 AM", col: "text-red-400" },
+            { evt: "Investigator assigned", t: "01:50 AM", col: "text-blue-400" },
+          ].map((e, i) => (
+            <div key={i} className={cn("flex items-start gap-1 rounded px-1 py-0.5 border transition-colors", readingTimeline ? "border-blue-400/30 bg-[#1e3a5f]/20" : "border-white/8 bg-[#1c221c]")}>
+              <span className={cn("h-1.5 w-1.5 rounded-full mt-0.5 shrink-0", e.col)} />
+              <div>
+                <p className="text-[6px] text-white/70">{e.evt}</p>
+                <p className="text-[5px] text-white/30">{e.t}</p>
+              </div>
+            </div>
+          ))}
+          <div className="pt-1 space-y-1">
+            <div className={cn(
+              "h-6 rounded text-[6px] flex items-center justify-center gap-1 font-semibold transition-all cursor-pointer",
+              callingDriver ? "bg-emerald-500 text-white scale-95 animate-pulse" : "bg-[#2563eb] text-white"
+            )}>
+              📞 Call Driver
+            </div>
+            <div className="h-5 rounded text-[6px] flex items-center justify-center bg-[#1c221c] border border-white/8 text-white/40">Notify Ops Team</div>
+            <div className="h-5 rounded text-[6px] flex items-center justify-center bg-[#1c221c] border border-white/8 text-white/40">Add to Incident</div>
+          </div>
+        </div>
+
+        {/* Right: map + RiskGPT summary */}
+        <div className="flex-1 bg-[#1a2418] relative flex flex-col">
+          {/* Map */}
+          <div className="flex-1 relative overflow-hidden">
+            <div className="absolute inset-0 opacity-25" style={{ background: "radial-gradient(ellipse at 40% 55%, #1a4d2e 0%, #0d1a0d 60%)" }} />
+            {/* Satellite-style coast shapes */}
+            <svg className="absolute inset-0 w-full h-full opacity-30">
+              <path d="M 0 70% Q 30% 55%, 50% 60% Q 70% 65%, 100% 50%" stroke="#4ade80" strokeWidth="0.5" fill="none" opacity="0.4" />
+              <path d="M 20% 100% Q 35% 75%, 55% 65% Q 70% 58%, 80% 40%" stroke="#4ade80" strokeWidth="0.5" fill="none" opacity="0.3" />
+            </svg>
+            <svg className="absolute inset-0 w-full h-full">
+              {/* Route line */}
+              <line x1="15%" y1="75%" x2="80%" y2="20%" stroke="#ef4444" strokeWidth="1.5" strokeDasharray="3,2" opacity="0.7" />
+              {/* Stop marker - pulsing red */}
+              <circle cx="15%" cy="75%" r="5" fill="#ef4444" opacity="0.9" />
+              <circle cx="15%" cy="75%" r="10" fill="#ef4444" opacity="0.2" />
+              {/* Destination */}
+              <circle cx="80%" cy="20%" r="3" fill="#2563eb" opacity="0.8" />
+            </svg>
+            {/* Stopped label */}
+            <div className="absolute left-2 bottom-6 bg-[#222a22]/90 border border-red-500/30 rounded px-1.5 py-1">
+              <p className="text-[5px] text-red-300 font-semibold">⛽ Vehicle stopped · 47 min</p>
+              <p className="text-[5px] text-white/40">São Paulo outskirts</p>
+            </div>
+          </div>
+          {/* RiskGPT panel */}
+          <div className="bg-[#222a22]/95 border-t border-white/8 p-1.5">
+            <div className="flex gap-1 mb-1">
+              {["Notes", "Chat with RiskGPT", "Instructions"].map((t, i) => (
+                <span key={t} className={cn("text-[5px] px-1.5 py-0.5 rounded cursor-pointer", i === 1 ? "bg-[#2563eb]/60 text-white border-b border-blue-400" : "text-white/30")}>{t}</span>
+              ))}
+            </div>
+            <div className="space-y-0.5 text-[5px] text-white/60 leading-relaxed">
+              <p className="font-semibold text-white text-[6px]">High-Risk Alert: OH-84764</p>
+              <p>Risk 98% · Theft probability 97%. Weekend + driver deviation + unauthorized stop pattern.</p>
+              <p className="text-amber-300">Recommend: immediate driver contact + ops notification.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Driver Call Screen ───────────────────────────────────────────────────────
+
+export function DriverCallScreen({ interaction }: ScreenProps) {
+  const connected = !!interaction?.match(/confirm|driver confirm|fuel stop|response/i);
+  const ending = !!interaction?.match(/end call|mark.*resolved|resolved/i);
+
+  return (
+    <div className="h-full bg-[#0d1210] text-white flex flex-col items-center justify-center relative">
+      {/* Blurred background */}
+      <div className="absolute inset-0 bg-[#161b16] opacity-80" />
+      <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(circle at 50% 50%, #1e3a2e44 0%, transparent 70%)" }} />
+
+      {/* Call card */}
+      <div className="relative z-10 flex flex-col items-center gap-3 bg-[#1e261e] border border-emerald-500/20 rounded-2xl px-6 py-5 w-48 shadow-2xl">
+        {/* Avatar */}
+        <div className={cn(
+          "h-12 w-12 rounded-full border-2 flex items-center justify-center text-lg transition-colors",
+          connected ? "border-emerald-400 bg-emerald-500/20" : "border-blue-400 bg-blue-500/20 animate-pulse"
+        )}>
+          👤
+        </div>
+
+        <div className="text-center">
+          <p className="text-[9px] font-semibold text-white">Marcus Vinicius</p>
+          <p className="text-[7px] text-white/50">Driver · OH-84764</p>
+          <p className={cn("text-[7px] mt-0.5", connected ? "text-emerald-400" : "text-blue-300")}>
+            {ending ? "Call ended" : connected ? "Connected · 4:32" : "Calling…"}
+          </p>
+        </div>
+
+        {/* Live transcript */}
+        {connected && (
+          <div className="w-full bg-[#131a13] rounded-lg p-1.5 border border-white/8 space-y-1">
+            <p className="text-[5px] text-emerald-300">Agent: Driver, please confirm your current status.</p>
+            <p className="text-[5px] text-blue-300">Marcus: Routine fuel stop. Back in ~10 min. All good.</p>
+            <p className="text-[5px] text-emerald-300">Agent: Understood, logging as explained stop.</p>
+          </div>
+        )}
+
+        {/* Action buttons */}
+        <div className="flex gap-2">
+          <div className={cn(
+            "h-7 w-7 rounded-full flex items-center justify-center text-[10px] border transition-all",
+            ending ? "border-white/20 bg-white/5 text-white/30" : "border-red-500 bg-red-600 text-white cursor-pointer"
+          )}>
+            ✕
+          </div>
+          {connected && !ending && (
+            <div className="h-7 w-7 rounded-full border border-emerald-500 bg-emerald-600 flex items-center justify-center text-[8px] text-white">✓</div>
+          )}
+        </div>
+      </div>
+
+      {/* Status bar */}
+      <div className="relative z-10 mt-3 flex items-center gap-1.5 text-[6px] text-white/40">
+        <span className={cn("h-1.5 w-1.5 rounded-full", connected ? "bg-emerald-400" : "bg-blue-400 animate-pulse")} />
+        {connected ? "Call in progress · Recording" : "Connecting via Overhaul dispatch…"}
+      </div>
+    </div>
+  );
+}
+
+// ─── Case Notes Screen ────────────────────────────────────────────────────────
+
+export function CaseNotesScreen({ interaction }: ScreenProps) {
+  const typing = !!interaction?.match(/notes|typing|driver confirmed|routine/i);
+  const saving = !!interaction?.match(/save|close alert/i);
+
+  const noteText = "Driver Marcus Vinicius (OH-84764) confirmed routine fuel stop near São Paulo outskirts at 01:00 AM. No security threat detected. Stop duration: ~47 min. Vehicle resuming route ETA +10 min. Risk score updated: 98% → Explained.";
+
+  return (
+    <div className="h-full bg-[#161b16] text-white flex flex-col">
+      <MiniNavbar activePage="Risk Monitor" interaction={interaction} />
+      {/* Header */}
+      <div className="px-2 py-1.5 bg-[#222a22] border-b border-white/8 flex items-center justify-between shrink-0">
+        <div>
+          <p className="text-[8px] font-semibold text-white">Case Notes — OH-84764</p>
+          <p className="text-[6px] text-white/40">Light &amp; Stop (Compound) · Investigation outcome</p>
+        </div>
+        <span className="text-[6px] text-emerald-300 bg-emerald-500/15 px-1.5 py-0.5 rounded-full border border-emerald-500/30">Explained</span>
+      </div>
+
+      <div className="flex flex-1 min-h-0 gap-0">
+        {/* Left: meta */}
+        <div className="w-24 shrink-0 bg-[#1e261e] border-r border-white/8 p-1.5 space-y-1.5">
+          <p className="text-[6px] text-white/50 uppercase font-semibold">Resolution</p>
+          {[
+            { l: "Driver", v: "Reached ✓" },
+            { l: "Stop Reason", v: "Fuel stop" },
+            { l: "Threat", v: "None detected" },
+            { l: "Call", v: "4m 32s" },
+          ].map(r => (
+            <div key={r.l} className="bg-[#1c221c] border border-white/8 rounded p-1">
+              <p className="text-[5px] text-white/30">{r.l}</p>
+              <p className="text-[6px] font-medium text-emerald-300">{r.v}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Right: notes editor */}
+        <div className="flex-1 p-1.5 flex flex-col gap-1.5">
+          <p className="text-[6px] text-white/50 uppercase font-semibold">Investigation Notes</p>
+          <div className={cn(
+            "flex-1 rounded border p-1.5 text-[5.5px] leading-relaxed transition-colors",
+            saving ? "border-emerald-400/40 bg-emerald-500/5 text-white/80" :
+            typing ? "border-blue-400/40 bg-[#1e3a5f]/20 text-white/70" :
+            "border-white/8 bg-[#1c221c] text-white/40"
+          )}>
+            {typing || saving ? noteText : "Click to add notes…"}
+            {typing && !saving && <span className="animate-pulse text-blue-300">|</span>}
+          </div>
+          <div className="flex gap-1">
+            <div className={cn(
+              "flex-1 h-6 rounded text-[6px] flex items-center justify-center font-medium transition-all",
+              saving ? "bg-emerald-500 text-white scale-95" : "bg-[#2563eb] text-white"
+            )}>
+              {saving ? "✓ Saved" : "Save Notes"}
+            </div>
+            <div className="h-6 px-2 rounded text-[6px] flex items-center bg-[#1c221c] border border-white/8 text-white/40">
+              Close Alert
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Screen Registry ──────────────────────────────────────────────────────────
 
 export function getScreen(id: ScreenId, interaction?: string): React.ReactNode {
@@ -659,6 +897,9 @@ export function getScreen(id: ScreenId, interaction?: string): React.ReactNode {
     case "fraud-dashboard": return <FraudCheckScreen interaction={interaction} />;
     case "digital-twin": return <DigitalTwinScreen interaction={interaction} />;
     case "executive-report": return <ExecutiveReportScreen interaction={interaction} />;
+    case "case-detail": return <CaseDetailScreen interaction={interaction} />;
+    case "driver-call": return <DriverCallScreen interaction={interaction} />;
+    case "case-notes": return <CaseNotesScreen interaction={interaction} />;
     default: return <HomeScreen interaction={interaction} />;
   }
 }
@@ -674,6 +915,9 @@ export const SCREEN_LABELS: Record<ScreenId, string> = {
   "fraud-dashboard": "Fraud Watch — Bad Actor Check",
   "digital-twin": "Digital Twin",
   "search-results": "Search Results",
+  "case-detail": "Case Detail — OH-84764",
+  "driver-call": "Driver Call — Marcus Vinicius",
+  "case-notes": "Case Notes",
 };
 
 // ─── Hotspot positions ────────────────────────────────────────────────────────
@@ -731,5 +975,20 @@ export const SCREEN_HOTSPOTS: Partial<Record<ScreenId, Hotspot[]>> = {
     { x: 20, y: 45, label: "Shipment marker — high risk" },
     { x: 60, y: 35, label: "Shipment marker — normal" },
     { x: 35, y: 55, label: "Shipment marker" },
+  ],
+  "case-detail": [
+    { x: 10, y: 35, label: "Open full case — Light & Stop" },
+    { x: 10, y: 42, label: "Case timeline — stopped 47 min at São Paulo" },
+    { x: 10, y: 60, label: "Call Driver button" },
+  ],
+  "driver-call": [
+    { x: 50, y: 30, label: "Calling Marcus Vinicius — ringing" },
+    { x: 50, y: 55, label: "Driver confirms routine fuel stop" },
+    { x: 50, y: 75, label: "End call — mark stop as explained" },
+  ],
+  "case-notes": [
+    { x: 60, y: 25, label: "Add Case Notes" },
+    { x: 60, y: 55, label: "Notes: driver confirmed routine fuel stop — no security incident" },
+    { x: 60, y: 80, label: "Save Notes & close alert" },
   ],
 };

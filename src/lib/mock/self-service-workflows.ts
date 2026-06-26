@@ -12,7 +12,10 @@ export type ScreenId =
   | "executive-report"
   | "fraud-dashboard"
   | "digital-twin"
-  | "search-results";
+  | "search-results"
+  | "case-detail"
+  | "driver-call"
+  | "case-notes";
 
 export interface ScreenAction {
   type: "navigate" | "click" | "type" | "hover" | "scroll" | "read";
@@ -564,6 +567,79 @@ const GET_ETA = (query?: string): CustomerWorkflow => {
   };
 };
 
+const INVESTIGATE_CASE = (): CustomerWorkflow => ({
+  id: "investigate-case",
+  intentPatterns: ["light stop", "investigate", "incident", "call driver", "check risk", "open case"],
+  title: "Investigate Light & Stop Alert",
+  steps: [
+    {
+      screen: "home",
+      actions: [
+        { type: "navigate", targetLabel: "Risk Monitor", durationMs: 800, thought: "Navigating to Risk Monitor to access the active compound case." },
+      ],
+    },
+    {
+      screen: "risk-monitor",
+      actions: [
+        { type: "click", targetLabel: "Weekend transit vulnerability — OH-84764", durationMs: 900, thought: "Selecting the Light & Stop compound alert on shipment OH-84764. Risk score 98+." },
+        { type: "click", targetLabel: "Chat with RiskGPT tab", durationMs: 700, thought: "Opening RiskGPT to run an AI risk assessment on this compound event." },
+        { type: "type", targetLabel: "Analyze Light & Stop compound case OH-84764", durationMs: 1200, thought: "Asking RiskGPT to assess the combined risk factors for this shipment." },
+        { type: "read", targetLabel: "RiskGPT analysis — 98% risk score, 97% theft probability", durationMs: 1600, thought: "Reading assessment: 98% composite risk, 97% theft probability. Weekend transit + route deviation + unauthorized stop potential detected." },
+      ],
+      resultSnippet: "Risk Score 98% · Theft 97%",
+    },
+    {
+      screen: "case-detail",
+      actions: [
+        { type: "click", targetLabel: "Open full case — Light & Stop", durationMs: 700, thought: "Opening the detailed investigation panel for the Light & Stop event." },
+        { type: "read", targetLabel: "Case timeline — stopped 47 min at São Paulo", durationMs: 1100, thought: "Vehicle stopped at 01:00 AM, 47 minutes with no check-in. Nick Fury assigned. Battery 92%." },
+        { type: "click", targetLabel: "Call Driver button", durationMs: 800, thought: "Driver hasn't responded to automated check-in. I'll initiate a direct call now." },
+      ],
+      resultSnippet: "Initiating driver call…",
+    },
+    {
+      screen: "driver-call",
+      actions: [
+        { type: "read", targetLabel: "Calling Marcus Vinicius — ringing", durationMs: 2200, thought: "Call connecting… driver picked up after 8 seconds." },
+        { type: "read", targetLabel: "Driver confirms routine fuel stop", durationMs: 1800, thought: "Driver confirms: routine fuel stop, no security threat. Will resume in approximately 10 minutes." },
+        { type: "click", targetLabel: "End call — mark stop as explained", durationMs: 800, thought: "Call complete. Logging: routine fuel stop confirmed. Updating case status to Explained." },
+      ],
+      resultSnippet: "Driver reached · Stop explained",
+    },
+    {
+      screen: "case-notes",
+      actions: [
+        { type: "click", targetLabel: "Add Case Notes", durationMs: 600, thought: "Opening the case notes panel to document the investigation outcome." },
+        { type: "type", targetLabel: "Notes: driver confirmed routine fuel stop — no security incident", durationMs: 1400, thought: "Recording: Marcus Vinicius (driver) confirmed routine fuel stop near São Paulo. No threat detected. Call duration 4m 32s." },
+        { type: "click", targetLabel: "Save Notes & close alert", durationMs: 800, thought: "Saving investigation notes and closing the Light & Stop alert with Explained status." },
+      ],
+      resultSnippet: "Notes saved · Alert resolved",
+    },
+  ],
+  finalResult: {
+    type: "general",
+    headline: "Light & Stop Case Resolved — OH-84764",
+    data: {
+      "Case Type": "Light & Stop (Compound)",
+      "Shipment": "OH-84764",
+      "Route": "São Paulo → Chicago, USA",
+      "Risk Score": "98% → Explained",
+      "Theft Probability": "97%",
+      "Driver Reached": "✓ Marcus Vinicius",
+      "Call Duration": "4m 32s",
+      "Stop Reason": "Routine fuel stop",
+      "Resolution": "Explained — no threat",
+      "Notes Saved": "Yes · Logged to case file",
+    },
+    actions: [
+      { label: "View Case Report", variant: "primary" },
+      { label: "Close Alert", variant: "secondary" },
+      { label: "Escalate to Ops", variant: "secondary" },
+    ],
+    message: `Light & Stop compound case for **OH-84764** has been investigated and resolved. Driver **Marcus Vinicius** confirmed a routine fuel stop near São Paulo — **no security threat detected**. Risk score updated: **98% → Explained**. Case notes saved and alert closed.`,
+  },
+});
+
 export const WORKFLOWS: CustomerWorkflow[] = [
   TRACK_SHIPMENT(),
   FILE_INCIDENT(),
@@ -575,14 +651,13 @@ export const WORKFLOWS: CustomerWorkflow[] = [
 export function resolveWorkflow(input: string): CustomerWorkflow {
   const lower = input.toLowerCase();
 
-  // Check specific intent patterns
-  if (/incident|file|claim|issue|problem|damaged|stolen|missing|lost/.test(lower)) return FILE_INCIDENT(input);
+  if (/light.?stop|investigate|call driver|open case|check risk.*score|incident.*alert/.test(lower)) return INVESTIGATE_CASE();
+  if (/incident|file|claim|damaged|stolen|missing|lost/.test(lower)) return FILE_INCIDENT(input);
   if (/risk|report|analysis|assessment|score|safety|danger|threat/.test(lower)) return GET_RISK_REPORT(input);
-  if (/carrier|driver|trucker|transport|verify|check carrier|credentials/.test(lower)) return CHECK_CARRIER(input);
+  if (/carrier|trucker|transport|verify|check carrier|credentials/.test(lower)) return CHECK_CARRIER(input);
   if (/eta|when|arrive|arrival|delivery|how long|expected/.test(lower)) return GET_ETA(input);
   if (/track|where is|locate|status|shipment|cargo|find/.test(lower)) return TRACK_SHIPMENT(input);
 
-  // Default: track shipment
   return TRACK_SHIPMENT(input);
 }
 
