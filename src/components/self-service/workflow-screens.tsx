@@ -823,6 +823,8 @@ export function DriverCallScreen({ interaction }: ScreenProps) {
 export function CaseNotesScreen({ interaction }: ScreenProps) {
   const typing = !!interaction?.match(/notes|typing|driver confirmed|routine/i);
   const saving = !!interaction?.match(/save|close alert/i);
+  // Default to saved state when workflow is complete or no specific action is active
+  const isSaved = saving || (!typing && !interaction?.match(/add case/i));
 
   const noteText = "Driver Marcus Vinicius (OH-84764) confirmed routine fuel stop near São Paulo outskirts at 01:00 AM. No security threat detected. Stop duration: ~47 min. Vehicle resuming route ETA +10 min. Risk score updated: 98% → Explained.";
 
@@ -860,19 +862,19 @@ export function CaseNotesScreen({ interaction }: ScreenProps) {
           <p className="text-[6px] text-white/50 uppercase font-semibold">Investigation Notes</p>
           <div className={cn(
             "flex-1 rounded border p-1.5 text-[5.5px] leading-relaxed transition-colors",
-            saving ? "border-emerald-400/40 bg-emerald-500/5 text-white/80" :
+            isSaved ? "border-emerald-400/40 bg-emerald-500/5 text-white/80" :
             typing ? "border-blue-400/40 bg-[#1e3a5f]/20 text-white/70" :
             "border-white/8 bg-[#1c221c] text-white/40"
           )}>
-            {typing || saving ? noteText : "Click to add notes…"}
-            {typing && !saving && <span className="animate-pulse text-blue-300">|</span>}
+            {typing || isSaved ? noteText : "Click to add notes…"}
+            {typing && !isSaved && <span className="animate-pulse text-blue-300">|</span>}
           </div>
           <div className="flex gap-1">
             <div className={cn(
               "flex-1 h-6 rounded text-[6px] flex items-center justify-center font-medium transition-all",
-              saving ? "bg-emerald-500 text-white scale-95" : "bg-[#2563eb] text-white"
+              isSaved ? "bg-emerald-500 text-white" : "bg-[#2563eb] text-white"
             )}>
-              {saving ? "✓ Saved" : "Save Notes"}
+              {isSaved ? "✓ Saved" : "Save Notes"}
             </div>
             <div className="h-6 px-2 rounded text-[6px] flex items-center bg-[#1c221c] border border-white/8 text-white/40">
               Close Alert
