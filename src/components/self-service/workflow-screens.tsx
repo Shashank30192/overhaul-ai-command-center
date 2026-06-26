@@ -101,20 +101,20 @@ export function RiskMonitorScreen({ highlightId, interaction }: { highlightId?: 
       </div>
       <div className="flex flex-1 min-h-0">
         {/* Alert list */}
-        <div className="w-28 bg-[#222a22] border-r border-white/8 flex flex-col">
-          <div className="p-1.5 border-b border-white/8 shrink-0">
+        <div className="w-20 shrink-0 bg-[#222a22] border-r border-white/8 flex flex-col">
+          <div className="p-1 border-b border-white/8 shrink-0">
             <div className={cn(
               "relative flex items-center rounded border",
               searchActive ? "border-blue-400 bg-[#1e3a5f]/40" : "border-white/8 bg-[#1c221c]"
             )}>
-              <Search className="absolute left-1 h-2 w-2 text-white/30" />
-              <div className="w-full h-4 pl-4 text-[6px] flex items-center text-white/60">
-                {typingText || (searchActive ? <span className="animate-pulse text-blue-300">|</span> : <span className="text-white/20">Search</span>)}
+              <Search className="absolute left-1 h-1.5 w-1.5 text-white/30" />
+              <div className="w-full h-3.5 pl-3.5 text-[5px] flex items-center text-white/60">
+                {typingText || (searchActive ? <span className="animate-pulse text-blue-300">|</span> : <span className="text-white/20">Search alerts</span>)}
               </div>
             </div>
           </div>
           <div className="flex-1 overflow-hidden p-1 space-y-1">
-            {alerts.map((s, i) => {
+            {alerts.slice(0, 5).map((s, i) => {
               const ohId = s.id.replace(/[^0-9]/g, "").slice(0, 7);
               const selected = i === selectedIdx;
               return (
@@ -125,13 +125,11 @@ export function RiskMonitorScreen({ highlightId, interaction }: { highlightId?: 
                     selected ? "bg-[#2563eb] border-blue-400" : "bg-[#1c221c] border-white/8"
                   )}
                 >
-                  <p className="text-[6px] font-semibold text-white truncate">{s.riskReasons[0]?.slice(0, 18) ?? "Active Alert"}</p>
-                  <p className="text-[5px] text-white/40">OH: {ohId}</p>
+                  <p className="text-[5.5px] font-semibold text-white truncate">{s.riskReasons[0]?.slice(0, 16) ?? "Active Alert"}</p>
+                  <p className="text-[4.5px] text-white/40">OH-{ohId}</p>
                   <div className="flex items-center justify-between mt-0.5">
-                    <span className="text-[5px] text-white/30 flex items-center gap-0.5">
-                      <MapPin className="h-1.5 w-1.5" />{s.origin.slice(0, 8)}
-                    </span>
-                    <span className="text-[5px] text-red-400 font-bold">{s.riskScore}+</span>
+                    <span className="text-[4.5px] text-white/30 truncate">{s.origin.slice(0, 7)}</span>
+                    <span className="text-[4.5px] text-red-400 font-bold">{s.riskScore}+</span>
                   </div>
                 </div>
               );
@@ -139,20 +137,16 @@ export function RiskMonitorScreen({ highlightId, interaction }: { highlightId?: 
           </div>
         </div>
         {/* Timeline */}
-        <div className="w-28 bg-[#1c221c] border-r border-white/8 flex flex-col">
-          <div className="px-2 py-1.5 border-b border-white/8 shrink-0">
-            <p className="text-[7px] font-semibold text-white">Timeline</p>
+        <div className="w-20 shrink-0 bg-[#1c221c] border-r border-white/8 flex flex-col">
+          <div className="px-1.5 py-1 border-b border-white/8 shrink-0">
+            <p className="text-[6px] font-semibold text-white">Timeline</p>
           </div>
-          <div className="flex-1 p-1.5 space-y-1.5 overflow-hidden">
+          <div className="flex-1 p-1 space-y-1 overflow-hidden">
             {["Route Deviation", "Unauthorized Stop", "Geofence Breach", "TTS Expired"].map((evt, i) => (
               <div key={evt} className={cn("rounded border p-1", i === 0 ? "bg-[#1e3a5f]/40 border-blue-500/30" : "bg-[#1c221c] border-white/8")}>
-                <p className="text-[6px] font-medium text-white">{evt}</p>
-                <p className="text-[5px] text-white/30 flex items-center gap-0.5 mt-0.5">
-                  <User className="h-1.5 w-1.5" /> Nick Fury investigating
-                </p>
-                <p className="text-[5px] text-white/20 flex items-center gap-0.5">
-                  <Battery className="h-1.5 w-1.5" /> {92 - i * 8}% battery
-                </p>
+                <p className="text-[5.5px] font-medium text-white">{evt}</p>
+                <p className="text-[4.5px] text-white/30 mt-0.5">Nick Fury</p>
+                <p className="text-[4.5px] text-white/20">{92 - i * 8}% batt</p>
               </div>
             ))}
           </div>
