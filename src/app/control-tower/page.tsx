@@ -10,6 +10,7 @@ import { CTAnalytics } from "@/components/control-tower/ct-analytics";
 import { CTWorkflow } from "@/components/control-tower/ct-workflow";
 import { CTShipmentDetail } from "@/components/control-tower/ct-shipment-detail";
 import { type Shipment } from "@/components/control-tower/mock-data";
+import { StudioShell } from "@/components/studio/studio-shell";
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -33,6 +34,7 @@ export default function ControlTowerPage() {
         {view === 'orders' && <Placeholder title="Orders" />}
         {view === 'integrations' && <CTIntegrations onToast={onToast} />}
         {view === 'agents' && <CTAICommand onToast={onToast} />}
+        {view === 'studio' && <StudioShell />}
         {view === 'workflow' && <CTWorkflow onToast={onToast} />}
         {view === 'api-monitor' && <CTApiMonitor />}
         {view === 'analytics' && <CTAnalytics />}
