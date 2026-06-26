@@ -138,6 +138,34 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     if (scrollAfter) scrollBottom();
   }, [scrollBottom]);
 
+  const callAgentLLM = useCallback(async (
+    phase: "start" | "complete",
+    goal: string,
+    workflowTitle: string,
+    workflowResult?: Record<string, string>,
+    currentMessages?: ChatMessage[],
+  ): Promise<string> => {
+    try {
+      const res = await fetch("/api/self-service-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: goal,
+          phase,
+          workflowTitle,
+          workflowResult,
+          history: (currentMessages ?? []).slice(-8),
+        }),
+      });
+      if (!res.ok) throw new Error("API error");
+      const data = await res.json() as { response: string };
+      return data.response ?? "";
+    } catch {
+      if (phase === "start") return `I'll **${workflowTitle}** for you now. Let me navigate the platform…`;
+      return workflowResult?.["Resolution"] ?? `**${workflowTitle}** complete.`;
+    }
+  }, []);
+
   const executeWorkflow = useCallback(async (goal: string) => {
     abortRef.current = false;
     const workflow = resolveWorkflow(goal);
@@ -160,11 +188,13 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       result: undefined,
     });
 
-    addMessage({ role: "agent", content: `I'll **${workflow.title}** for you now. Let me navigate the platform…`, partial: true });
-    await sleep(800);
-
-    // Update with "Accessing platform" message
-    updateLastAgent(`Starting **${workflow.title}**. I'm accessing the Overhaul platform now…`);
+    // Fire Groq for start message while workflow begins
+    addMessage({ role: "agent", content: `Starting **${workflow.title}**…`, partial: true });
+    const [startMsg] = await Promise.all([
+      callAgentLLM("start", goal, workflow.title),
+      sleep(800),
+    ]);
+    updateLastAgent(startMsg);
 
     let globalStep = 0;
 
@@ -240,13 +270,19 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     } : null);
 
     setResult(workflow.finalResult);
-    updateLastAgent(workflow.finalResult.message, true); // scroll only now — task done
+
+    // Get LLM summary of results
+    const resultData = workflow.finalResult.data as Record<string, string> | undefined;
+    let finalMessages: ChatMessage[] = [];
+    setMessages(prev => { finalMessages = prev; return prev; });
+    const completionMsg = await callAgentLLM("complete", goal, workflow.title, resultData, finalMessages);
+    updateLastAgent(completionMsg, true);
 
     addMessage({
       role: "system",
       content: `✓ Task complete in ${Math.round(totalSteps * 1.2)}s — ${totalSteps} actions executed across ${workflow.steps.length} pages`,
     });
-  }, [addMessage, updateLastAgent, scrollBottom]);
+  }, [addMessage, updateLastAgent, scrollBottom, callAgentLLM]);
 
   const handleSend = useCallback((overrideText?: string) => {
     const trimmed = (overrideText ?? input).trim();
