@@ -93,6 +93,7 @@ export const NAV_LINKS = [
   { href: "/platform", label: "Platform" },
   { href: "/copilot", label: "AI Copilot" },
   { href: "/risk", label: "Risk Monitor" },
+  { href: "/studio", label: "Ecosystem Studio" },
   { href: "/control-tower", label: "Control Tower" },
   { href: "/orchestrator", label: "Orchestrator" },
   { href: "/self-service", label: "ACE" },
