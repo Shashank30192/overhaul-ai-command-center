@@ -134,7 +134,7 @@ export function RiskGptPanel({ shipment }: RiskGptPanelProps) {
   };
 
   return (
-    <div className="absolute bottom-4 left-4 right-4 z-[1000] max-w-xl">
+    <div className="absolute bottom-2 left-4 right-4 z-[1000] max-w-xl" style={{ bottom: "228px" }}>
       <div className="rounded-lg border border-[var(--mil-border)] bg-[var(--mil-panel)]/95 backdrop-blur-md shadow-2xl overflow-hidden">
         <div className="flex border-b border-[var(--mil-border)]">
           {([
