@@ -29,7 +29,7 @@ type HistoryItem = { role: "user" | "agent" | "system"; content: string };
 export async function POST(request: Request) {
   const body = await request.json() as {
     message: string;
-    phase: "start" | "complete";
+    phase: "start" | "complete" | "decision";
     workflowTitle?: string;
     workflowResult?: Record<string, string>;
     history?: HistoryItem[];
@@ -39,6 +39,44 @@ export async function POST(request: Request) {
 
   if (!message?.trim()) {
     return NextResponse.json({ error: "Message required" }, { status: 400 });
+  }
+
+  // Decision phase: agent evaluates severity and picks an action
+  if (phase === "decision") {
+    const decisionPrompt = `You are an autonomous GSOC agent. A cargo alert has been detected with the following data:
+${message}
+
+Based on this severity data, decide the SINGLE best action to take right now. Choose ONE:
+1. Call the driver directly
+2. Contact carrier dispatch
+3. Waive the event (low risk)
+4. Escalate to police immediately
+
+Respond in this exact JSON format (no markdown):
+{"action": "call-driver" | "contact-carrier" | "waive" | "escalate-police", "severity": "CRITICAL" | "HIGH" | "MEDIUM" | "LOW", "reasoning": "one sentence why", "confidence": 85}`;
+
+    if (hasGroqKey()) {
+      try {
+        const raw = await chatGroq([
+          { role: "system", content: "You are a risk assessment AI. Respond only with valid JSON." },
+          { role: "user", content: decisionPrompt },
+        ]);
+        const match = raw.match(/\{[\s\S]*\}/);
+        const decision = match ? JSON.parse(match[0]) as { action: string; severity: string; reasoning: string; confidence: number } : null;
+        if (decision) return NextResponse.json({ decision, mode: "groq" });
+      } catch { /* fall through */ }
+    }
+    // Fallback decision based on keyword matching
+    const isHigh = /98|97|critical|99|compound/i.test(message);
+    return NextResponse.json({
+      decision: {
+        action: isHigh ? "call-driver" : "waive",
+        severity: isHigh ? "CRITICAL" : "MEDIUM",
+        reasoning: isHigh ? "Risk score 98%+ with unauthorized stop requires immediate driver contact." : "Risk level within acceptable parameters.",
+        confidence: 90,
+      },
+      mode: "mock",
+    });
   }
 
   if (!hasGroqKey()) {

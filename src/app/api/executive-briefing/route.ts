@@ -3,6 +3,7 @@ import { demoData, getTopRiskShipments } from "@/lib/data";
 import type { ExecutiveBriefing } from "@/lib/types";
 import { hasApiKey, MODELS } from "@/lib/ai/anthropic";
 import { runAgent } from "@/lib/ai/agent";
+import { hasGroqKey, chatGroq } from "@/lib/ai/groq";
 
 export const runtime = "nodejs";
 
@@ -18,27 +19,38 @@ export async function GET() {
   const topRisks = getTopRiskShipments(3);
 
   let recommendations = STATIC_RECOMMENDATIONS;
+  let mode = "mock";
 
-  // Use Claude Sonnet to reason over the live portfolio and produce recommendations.
-  if (hasApiKey()) {
+  const topRiskSummary = topRisks.map(s => `${s.id}: ${s.cargo}, risk ${s.riskScore}%, ${s.origin}→${s.destination}`).join("; ");
+  const execPrompt = `You are an executive risk advisor for Overhaul, a cargo security platform. Active portfolio: ${demoData.shipments.length} shipments, ${demoData.fraudCases.length} fraud cases, ${demoData.carriers.length} carriers. Top risks: ${topRiskSummary}. Produce exactly 5 concise, executive-ready action recommendations for today. Return ONLY a plain numbered list (1-5), no preamble, no markdown headers.`;
+
+  if (hasGroqKey()) {
     try {
-      const text = await runAgent(
-        "Using the portfolio summary and top risk shipments, produce exactly 5 concise, executive-ready action recommendations for today. Return ONLY a plain numbered list (1-5), no preamble, no markdown headers.",
-        MODELS.reasoning,
-        700,
-      );
+      const text = await chatGroq([
+        { role: "system", content: "You are a concise executive risk advisor. Return only a numbered list." },
+        { role: "user", content: execPrompt },
+      ]);
       const parsed = text
         .split("\n")
         .map((l) => l.replace(/^\s*\d+[.)]\s*/, "").replace(/^[-*]\s*/, "").trim())
         .filter((l) => l.length > 8);
-      if (parsed.length >= 3) recommendations = parsed.slice(0, 5);
-    } catch {
-      // fall back to static recommendations
-    }
+      if (parsed.length >= 3) { recommendations = parsed.slice(0, 5); mode = "groq"; }
+    } catch { /* fall through */ }
+  }
+
+  if (mode === "mock" && hasApiKey()) {
+    try {
+      const text = await runAgent(execPrompt, MODELS.reasoning, 700);
+      const parsed = text
+        .split("\n")
+        .map((l) => l.replace(/^\s*\d+[.)]\s*/, "").replace(/^[-*]\s*/, "").trim())
+        .filter((l) => l.length > 8);
+      if (parsed.length >= 3) { recommendations = parsed.slice(0, 5); mode = "claude"; }
+    } catch { /* fall through */ }
   }
 
   const briefing: ExecutiveBriefing & { mode: string } = {
-    mode: hasApiKey() ? "claude" : "mock",
+    mode,
     generatedAt: new Date().toISOString(),
     topRisks: topRisks.map((s) => ({
       title: `${s.id} — ${s.cargo} (${s.riskScore}% risk)`,

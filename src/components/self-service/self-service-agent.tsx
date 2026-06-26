@@ -23,6 +23,13 @@ import { AgentViewport } from "./agent-viewport";
 
 type AgentPhase = "idle" | "running" | "complete";
 
+interface AgentDecision {
+  action: "call-driver" | "contact-carrier" | "waive" | "escalate-police";
+  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  reasoning: string;
+  confidence: number;
+}
+
 interface ChatMessage {
   id: string;
   role: "user" | "agent" | "system";
@@ -114,6 +121,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   const [input, setInput] = useState("");
   const [run, setRun] = useState<RunState | null>(null);
   const [result, setResult] = useState<WorkflowResult | null>(null);
+  const [agentDecision, setAgentDecision] = useState<AgentDecision | null>(null);
   const abortRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -137,6 +145,21 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     });
     if (scrollAfter) scrollBottom();
   }, [scrollBottom]);
+
+  const callAgentDecision = useCallback(async (shipmentContext: string): Promise<AgentDecision | null> => {
+    try {
+      const res = await fetch("/api/self-service-agent", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: shipmentContext, phase: "decision", workflowTitle: "Risk Assessment" }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json() as { decision?: AgentDecision };
+      return data.decision ?? null;
+    } catch {
+      return null;
+    }
+  }, []);
 
   const callAgentLLM = useCallback(async (
     phase: "start" | "complete",
@@ -190,11 +213,20 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
     // Fire Groq for start message while workflow begins
     addMessage({ role: "agent", content: `Starting **${workflow.title}**…`, partial: true });
-    const [startMsg] = await Promise.all([
+
+    // For investigate-case, run AI severity decision in parallel
+    const isInvestigate = /light.?stop|investigate|open case/i.test(goal);
+    const decisionPromise = isInvestigate
+      ? callAgentDecision("Shipment OH-84764, Risk Score: 98%, Theft Probability: 97%, Weekend transit vulnerability, Unauthorized stop detected, Driver not responding to automated check-in, Battery 92%, Cargo: high-value electronics, Route: São Paulo→Chicago")
+      : Promise.resolve(null);
+
+    const [startMsg, decision] = await Promise.all([
       callAgentLLM("start", goal, workflow.title),
-      sleep(800),
+      decisionPromise,
     ]);
+    await sleep(800);
     updateLastAgent(startMsg);
+    if (decision) setAgentDecision(decision);
 
     let globalStep = 0;
 
@@ -299,6 +331,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     abortRef.current = true;
     setRun(null);
     setResult(null);
+    setAgentDecision(null);
     setInput("");
     setMessages([{
       id: "welcome",
@@ -603,13 +636,50 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
             )}
           </div>
 
-          <div className="flex gap-0 overflow-x-auto px-4 py-3 h-[calc(180px-40px)]">
+          <div className="flex gap-2 overflow-x-auto px-4 py-3 h-[calc(180px-40px)]">
             {isIdle && (
               <div className="flex items-center justify-center w-full">
                 <p className="text-xs text-[var(--mil-muted)]">
                   Actions will appear here as the agent works…
                 </p>
               </div>
+            )}
+
+            {/* AI Decision card — shown when Groq makes a severity decision */}
+            {agentDecision && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className={cn(
+                  "shrink-0 rounded-lg border px-3 py-2 min-w-[180px]",
+                  agentDecision.severity === "CRITICAL" ? "border-red-500/40 bg-red-500/8" :
+                  agentDecision.severity === "HIGH" ? "border-amber-500/40 bg-amber-500/8" :
+                  "border-emerald-500/30 bg-emerald-500/8"
+                )}
+              >
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[9px] font-bold uppercase tracking-wide text-white/60">AI Decision</span>
+                  <span className={cn(
+                    "text-[9px] font-bold px-1.5 py-0.5 rounded",
+                    agentDecision.severity === "CRITICAL" ? "bg-red-500/20 text-red-300" :
+                    agentDecision.severity === "HIGH" ? "bg-amber-500/20 text-amber-300" :
+                    "bg-emerald-500/20 text-emerald-300"
+                  )}>{agentDecision.severity}</span>
+                </div>
+                <p className="text-[10px] text-white font-semibold mb-1">
+                  {agentDecision.action === "call-driver" ? "📞 Call Driver" :
+                   agentDecision.action === "contact-carrier" ? "📡 Contact Carrier" :
+                   agentDecision.action === "waive" ? "✓ Waive Event" :
+                   "🚨 Escalate to Police"}
+                </p>
+                <p className="text-[9px] text-white/50 leading-tight">{agentDecision.reasoning}</p>
+                <div className="mt-1.5 flex items-center gap-1">
+                  <div className="flex-1 bg-white/10 rounded-full h-1">
+                    <div className="h-1 rounded-full bg-[#00c2b2]" style={{ width: `${agentDecision.confidence}%` }} />
+                  </div>
+                  <span className="text-[9px] text-[#00c2b2] font-mono">{agentDecision.confidence}%</span>
+                </div>
+              </motion.div>
             )}
 
             {run && (

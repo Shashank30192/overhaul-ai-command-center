@@ -2,9 +2,8 @@
 
 import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Bot, Send, RotateCcw } from "lucide-react";
+import { Bot, Send, RotateCcw, Loader2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { getChatbotResponse } from "@/lib/mock/agent-mock";
 
 interface Message {
   id: string;
@@ -53,9 +52,11 @@ export function ChatbotPanel() {
   ]);
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [aiMode, setAiMode] = useState<string>("...");
+  const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const send = (text: string) => {
+  const send = async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isTyping) return;
     setInput("");
@@ -64,12 +65,23 @@ export function ChatbotPanel() {
     setMessages((prev) => [...prev, userMsg]);
     setIsTyping(true);
 
-    setTimeout(() => {
-      const response = getChatbotResponse(trimmed);
-      setMessages((prev) => [...prev, { id: `b-${Date.now()}`, role: "bot", content: response }]);
+    try {
+      const res = await fetch("/api/chatbot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: trimmed, history: historyRef.current }),
+      });
+      const data = await res.json() as { response: string; mode: string };
+      const botMsg: Message = { id: `b-${Date.now()}`, role: "bot", content: data.response };
+      setMessages((prev) => [...prev, botMsg]);
+      setAiMode(data.mode);
+      historyRef.current = [...historyRef.current, { role: "user" as const, content: trimmed }, { role: "assistant" as const, content: data.response }].slice(-16);
+    } catch {
+      setMessages((prev) => [...prev, { id: `b-err-${Date.now()}`, role: "bot", content: "Sorry, I couldn't connect to the AI. Please try again." }]);
+    } finally {
       setIsTyping(false);
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    }, 600 + Math.random() * 400);
+    }
   };
 
   const reset = () => {
@@ -84,12 +96,17 @@ export function ChatbotPanel() {
   return (
     <div className="flex flex-col h-full">
       {/* Capability banner */}
-      <div className="shrink-0 mx-6 mt-4 p-3 rounded-lg bg-slate-500/10 border border-slate-500/20 flex items-start gap-3">
-        <Bot className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
-        <div className="text-xs text-slate-300">
-          <span className="font-semibold">Mode 1 — Chatbot:</span>{" "}
-          Answers predefined questions only. No platform data access. No planning. No tool usage. No actions.
+      <div className="shrink-0 mx-6 mt-4 p-3 rounded-lg bg-[#00c2b2]/8 border border-[#00c2b2]/20 flex items-start gap-3">
+        <Zap className="h-4 w-4 text-[#00c2b2] mt-0.5 shrink-0" />
+        <div className="text-xs text-slate-300 flex-1">
+          <span className="font-semibold text-[#00c2b2]">Mode 1 — RiskBot (Groq AI):</span>{" "}
+          Powered by Llama 3.3-70B. Answers supply chain risk questions with real AI reasoning.
         </div>
+        {aiMode !== "..." && (
+          <span className={cn("text-[10px] px-2 py-0.5 rounded-full font-medium shrink-0",
+            aiMode === "groq" ? "bg-[#00c2b2]/15 text-[#00c2b2]" : "bg-slate-500/20 text-slate-400"
+          )}>{aiMode}</span>
+        )}
       </div>
 
       {/* Messages */}
@@ -165,17 +182,17 @@ export function ChatbotPanel() {
           <input
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send(input)}
-            placeholder="Ask a question about risk concepts…"
+            onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void send(input); } }}
+            placeholder="Ask RiskBot anything about supply chain risk…"
             disabled={isTyping}
             className="flex-1 px-4 py-2.5 text-sm rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] text-white placeholder:text-[var(--mil-muted)] focus:outline-none focus:border-slate-500/50 disabled:opacity-50"
           />
           <button
-            onClick={() => send(input)}
+            onClick={() => void send(input)}
             disabled={!input.trim() || isTyping}
-            className="px-4 py-2.5 rounded-lg bg-slate-600 text-white text-sm font-medium hover:bg-slate-500 transition-colors disabled:opacity-40 flex items-center gap-2"
+            className="px-4 py-2.5 rounded-lg bg-[#00c2b2] text-white text-sm font-medium hover:bg-[#00a89a] transition-colors disabled:opacity-40 flex items-center gap-2"
           >
-            <Send className="h-4 w-4" />
+            {isTyping ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
           </button>
           <button
             onClick={reset}
@@ -185,7 +202,7 @@ export function ChatbotPanel() {
           </button>
         </div>
         <p className="text-[10px] text-[var(--mil-muted)] mt-2">
-          RiskBot has no access to live platform data and cannot take actions.
+          Powered by Groq · Llama 3.3-70B · Supply chain risk specialist
         </p>
       </div>
     </div>
