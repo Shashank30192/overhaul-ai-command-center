@@ -6,9 +6,10 @@ import {
   Search, SlidersHorizontal, ShieldAlert, Shield, ShieldCheck,
   ShieldX, ChevronDown, ChevronUp, MapPin, Hash, User, Phone,
   Mail, Briefcase, AlertTriangle, CheckCircle2, BarChart3,
-  Truck, FileText, Activity, Plus, Bell,
+  Truck, FileText, Activity, Plus, Bell, Bot,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { FraudWatchAIOnboarding } from "./fraudwatch-ai-onboarding";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -442,6 +443,7 @@ export function CarrierRiskDashboard() {
   const [filter, setFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Carrier>(CARRIERS[0]);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const filtered = CARRIERS.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
@@ -462,6 +464,14 @@ export function CarrierRiskDashboard() {
             <ShieldAlert className="h-4 w-4 text-red-400" />
             <h1 className="text-sm font-semibold text-white">Carrier Risk Dashboard</h1>
           </div>
+          <button
+            onClick={() => setShowOnboarding(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg border border-[#00c2b2]/30 bg-[#00c2b2]/8 text-[#00c2b2] text-xs font-medium hover:bg-[#00c2b2]/15 transition-colors"
+          >
+            <Bot className="h-3.5 w-3.5 shrink-0" />
+            AI Assisted Onboarding
+            <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded-full bg-[#00c2b2]/20 border border-[#00c2b2]/30 font-bold">NEW</span>
+          </button>
 
           {/* Filter tabs */}
           <div className="flex gap-1 mb-3 bg-[var(--mil-surface)] rounded-lg p-1">
@@ -539,12 +549,19 @@ export function CarrierRiskDashboard() {
       </aside>
 
       {/* ── Right: Detail Panel ── */}
-      <main className="flex-1 min-w-0 bg-[var(--mil-bg)]">
+      <main className="flex-1 min-w-0 bg-[var(--mil-bg)] relative overflow-hidden">
         <AnimatePresence mode="wait">
           <motion.div key={selected.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
             <CarrierDetail carrier={selected} />
           </motion.div>
+        </AnimatePresence>
+
+        {/* AI Onboarding Panel — overlays the carrier detail */}
+        <AnimatePresence>
+          {showOnboarding && (
+            <FraudWatchAIOnboarding onClose={() => setShowOnboarding(false)} />
+          )}
         </AnimatePresence>
       </main>
     </div>

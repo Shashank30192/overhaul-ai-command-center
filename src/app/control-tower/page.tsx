@@ -7,7 +7,8 @@ import { CTAICommand } from "@/components/control-tower/ct-ai-command";
 import { CTApiMonitor } from "@/components/control-tower/ct-api-monitor";
 import { CTIntegrations } from "@/components/control-tower/ct-integrations";
 import { CTAnalytics } from "@/components/control-tower/ct-analytics";
-import { CTWorkflow } from "@/components/control-tower/ct-workflow";
+import { CTEcosystemStudio } from "@/components/control-tower/ct-ecosystem-studio";
+import { CTWorkflowOrchestrator } from "@/components/control-tower/ct-workflow-orchestrator";
 import { CTShipmentDetail } from "@/components/control-tower/ct-shipment-detail";
 import { type Shipment } from "@/components/control-tower/mock-data";
 import { StudioShell } from "@/components/studio/studio-shell";
@@ -35,9 +36,10 @@ export default function ControlTowerPage() {
         {view === 'integrations' && <CTIntegrations onToast={onToast} />}
         {view === 'agents' && <CTAICommand onToast={onToast} />}
         {view === 'studio' && <StudioShell />}
-        {view === 'workflow' && <CTWorkflow onToast={onToast} />}
+        {view === 'workflow' && <CTEcosystemStudio onToast={onToast} />}
         {view === 'api-monitor' && <CTApiMonitor />}
         {view === 'analytics' && <CTAnalytics />}
+        {view === 'orchestrator' && <CTWorkflowOrchestrator onToast={onToast} />}
         {view === 'settings' && <Placeholder title="Settings" />}
       </CTShell>
 

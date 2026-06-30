@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { HelpCircle, Compass, Cpu, ArrowLeft, Zap, ChevronRight, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SSHelpBotPanel } from "./ss-helpbot-panel";
-import { SSNavigatorPanel } from "./ss-navigator-panel";
+import { SSGenAIAssistant } from "./ss-gen-ai-assistant";
 import { SelfServiceAgent } from "./self-service-agent";
 
 export type SSMode = "helpbot" | "navigator" | "agent";
@@ -166,7 +166,7 @@ export function SSCommandCenter() {
               className="h-full"
             >
               {mode === "helpbot" && <SSHelpBotPanel />}
-              {mode === "navigator" && <SSNavigatorPanel />}
+              {mode === "navigator" && <SSGenAIAssistant />}
               {mode === "agent" && <SelfServiceAgent embedded />}
             </motion.div>
           </AnimatePresence>

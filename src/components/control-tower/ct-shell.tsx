@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MOCK_SYSTEMS } from "./mock-data";
 
-export type CTView = 'dashboard' | 'ai-command' | 'shipments' | 'orders' | 'integrations' | 'agents' | 'workflow' | 'api-monitor' | 'analytics' | 'settings' | 'studio';
+export type CTView = 'dashboard' | 'ai-command' | 'shipments' | 'orders' | 'integrations' | 'agents' | 'workflow' | 'api-monitor' | 'analytics' | 'settings' | 'studio' | 'orchestrator';
 
 interface NavItem { id: CTView; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number | string }
 
@@ -18,11 +18,10 @@ const NAV: NavItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { id: 'ai-command', label: 'AI Command', icon: Bot, badge: '●' },
   { id: 'shipments', label: 'Shipments', icon: Package, badge: 23 },
-  { id: 'orders', label: 'Orders', icon: ShoppingCart },
   { id: 'integrations', label: 'Integrations', icon: Plug },
   { id: 'agents', label: 'Agents', icon: Server },
-  { id: 'studio', label: 'Ecosystem Studio', icon: Layers, badge: '✦' },
-  { id: 'workflow', label: 'Workflow Studio', icon: GitBranch },
+  { id: 'workflow', label: 'AI Ecosystem Studio', icon: GitBranch, badge: '✦' },
+  { id: 'orchestrator', label: 'Workflow Orchestrator', icon: Layers },
   { id: 'api-monitor', label: 'API Monitor', icon: Activity },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },

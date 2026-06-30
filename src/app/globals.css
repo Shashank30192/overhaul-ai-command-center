@@ -129,7 +129,7 @@ body:has(#risk-monitor-page) #alert-ticker {
 }
 
 body:has(#risk-monitor-page) main {
-  padding-top: 4rem;
+  padding-top: 65px;
 }
 
 .risk-map-tint .leaflet-container {

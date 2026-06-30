@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, RotateCcw, Bot, CheckCircle2, Loader2, Cpu,
   ArrowRight, Zap, ChevronRight, AlertTriangle, Clock,
-  Thermometer, ShieldCheck, FileText, Search,
+  Thermometer, ShieldCheck, FileText, Search, Hash, MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -313,6 +313,12 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     addMessage({
       role: "system",
       content: `✓ Task complete in ${Math.round(totalSteps * 1.2)}s — ${totalSteps} actions executed across ${workflow.steps.length} pages`,
+    });
+
+    await sleep(600);
+    addMessage({
+      role: "system",
+      content: `📩 Slack alert sent → GSOC Officer (R. Chen) · #gsoc-alerts notified`,
     });
   }, [addMessage, updateLastAgent, scrollBottom, callAgentLLM]);
 
@@ -765,6 +771,39 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                     <span className="text-[8px] text-emerald-400/60">
                       {run.totalSteps} actions
                     </span>
+                  </motion.div>
+                )}
+
+                {/* Slack GSOC alert card */}
+                {run.phase === "complete" && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.6 }}
+                    className="shrink-0 rounded-lg border overflow-hidden min-w-[180px]"
+                    style={{ borderColor: '#4A154B50', background: '#4A154B12' }}
+                  >
+                    <div className="flex items-center gap-1.5 px-3 py-1.5 border-b" style={{ borderColor: '#4A154B30' }}>
+                      <div className="h-3.5 w-3.5 rounded flex items-center justify-center shrink-0" style={{ background: '#4A154B' }}>
+                        <span className="text-[7px] font-bold text-white">#</span>
+                      </div>
+                      <span className="text-[9px] font-bold text-white/70">Slack Alert Sent</span>
+                      <CheckCircle2 className="h-3 w-3 text-emerald-400 ml-auto" />
+                    </div>
+                    <div className="px-3 py-2 space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <MessageSquare className="h-3 w-3 shrink-0" style={{ color: '#E8D5FF' }} />
+                        <span className="text-[9px]" style={{ color: '#E8D5FF99' }}>DM → R. Chen (GSOC Officer)</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Hash className="h-3 w-3 shrink-0" style={{ color: '#E8D5FF' }} />
+                        <span className="text-[9px]" style={{ color: '#E8D5FF99' }}>#gsoc-alerts · 4 notified</span>
+                      </div>
+                      <div className="rounded px-2 py-1 font-mono text-[8px] space-y-0.5" style={{ background: '#0a0c0d', borderLeft: '2px solid #4A154B' }}>
+                        <p className="text-white/50">🔔 <span className="text-emerald-400">RESOLVED</span></p>
+                        <p className="text-white/30">ACE agent · {run.totalSteps} actions</p>
+                      </div>
+                    </div>
                   </motion.div>
                 )}
               </div>

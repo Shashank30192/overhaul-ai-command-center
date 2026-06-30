@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Cpu, CheckCircle2, Circle, Loader2, Target, Wrench,
   Play, RotateCcw, ArrowRight, Zap, AlertTriangle,
-  PhoneCall, Clock,
+  PhoneCall, Clock, Hash, MessageSquare, Settings2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -492,7 +492,7 @@ export function SSResolutionAgentPanel() {
             </div>
 
             {/* Autonomy ladder explainer */}
-            <div className="p-4 flex-1">
+            <div className="p-4 border-b border-[var(--mil-border)]">
               <p className="text-[10px] uppercase tracking-widest text-[var(--mil-muted)] mb-3">Autonomy Ladder</p>
               <div className="space-y-2.5">
                 {[
@@ -513,6 +513,45 @@ export function SSResolutionAgentPanel() {
                     </div>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Slack Notifications Config */}
+            <div className="p-4 flex-1">
+              <div className="flex items-center gap-1.5 mb-3">
+                <div className="h-3.5 w-3.5 rounded flex items-center justify-center shrink-0" style={{ background: '#4A154B' }}>
+                  <span className="text-[7px] font-bold text-white">#</span>
+                </div>
+                <p className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: '#E8D5FF' }}>Slack Alerts</p>
+                <Settings2 className="h-3 w-3 text-white/20 ml-auto" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-[9px] text-white/30 uppercase tracking-wider">GSOC Officer</p>
+                <div className="rounded-lg px-2.5 py-2 flex items-center gap-2" style={{ background: '#4A154B15', border: '1px solid #4A154B30' }}>
+                  <div className="h-5 w-5 rounded-full bg-gradient-to-br from-purple-400 to-purple-700 flex items-center justify-center shrink-0">
+                    <span className="text-[7px] font-bold text-white">RC</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-semibold text-white/70">R. Chen</p>
+                    <p className="text-[8px] text-white/30">@ryan.chen · Online</p>
+                  </div>
+                  <div className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400 shrink-0" />
+                </div>
+                <p className="text-[9px] text-white/30 uppercase tracking-wider mt-2">Channels</p>
+                {[
+                  { ch: "#gsoc-alerts", active: true },
+                  { ch: "#risk-escalations", active: true },
+                  { ch: "#resolution-log", active: false },
+                ].map(c => (
+                  <div key={c.ch} className="flex items-center gap-2 px-2 py-1 rounded" style={{ background: '#4A154B08' }}>
+                    <Hash className="h-3 w-3 shrink-0" style={{ color: c.active ? '#E8D5FF' : '#ffffff20' }} />
+                    <span className="text-[9px] flex-1" style={{ color: c.active ? '#E8D5FF99' : '#ffffff20' }}>{c.ch}</span>
+                    <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", c.active ? "bg-emerald-400" : "bg-white/10")} />
+                  </div>
+                ))}
+                <p className="text-[8px] text-white/20 mt-2 leading-relaxed">
+                  Alert sent automatically when each resolution completes.
+                </p>
               </div>
             </div>
           </div>
@@ -547,28 +586,66 @@ export function SSResolutionAgentPanel() {
 
               {phase === "complete" && (
                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-                  className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                    <p className="text-sm font-semibold text-white">Investigation Complete</p>
+                  className="space-y-2.5">
+                  <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+                      <p className="text-sm font-semibold text-white">Investigation Complete</p>
+                    </div>
+                    <p className="text-sm text-white/70 leading-relaxed">
+                      {run.investigation.summary.split(/(\*\*[^*]+\*\*)/).map((p, j) =>
+                        p.startsWith("**") && p.endsWith("**")
+                          ? <strong key={j} className="text-white font-semibold">{p.slice(2, -2)}</strong>
+                          : <span key={j}>{p}</span>
+                      )}
+                    </p>
+                    <div className="mt-3 flex gap-2 flex-wrap">
+                      {[
+                        { label: "View Shipment Details", color: "bg-emerald-600 hover:bg-emerald-500 text-white" },
+                        { label: "Download Summary", color: "bg-[var(--mil-elevated)] border border-[var(--mil-border)] text-white/70 hover:text-white" },
+                      ].map((btn) => (
+                        <button key={btn.label} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors", btn.color)}>
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-sm text-white/70 leading-relaxed">
-                    {run.investigation.summary.split(/(\*\*[^*]+\*\*)/).map((p, j) =>
-                      p.startsWith("**") && p.endsWith("**")
-                        ? <strong key={j} className="text-white font-semibold">{p.slice(2, -2)}</strong>
-                        : <span key={j}>{p}</span>
-                    )}
-                  </p>
-                  <div className="mt-3 flex gap-2 flex-wrap">
-                    {[
-                      { label: "View Shipment Details", color: "bg-emerald-600 hover:bg-emerald-500 text-white" },
-                      { label: "Download Summary", color: "bg-[var(--mil-elevated)] border border-[var(--mil-border)] text-white/70 hover:text-white" },
-                    ].map((btn) => (
-                      <button key={btn.label} className={cn("px-3 py-1.5 rounded-lg text-xs font-medium transition-colors", btn.color)}>
-                        {btn.label}
-                      </button>
-                    ))}
-                  </div>
+
+                  {/* Slack GSOC Alert */}
+                  <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
+                    className="rounded-xl border overflow-hidden" style={{ borderColor: '#4A154B60', background: '#4A154B10' }}>
+                    <div className="flex items-center gap-2 px-4 py-2.5 border-b" style={{ borderColor: '#4A154B30' }}>
+                      <div className="h-4 w-4 rounded flex items-center justify-center shrink-0" style={{ background: '#4A154B' }}>
+                        <span className="text-[9px] font-bold text-white">#</span>
+                      </div>
+                      <span className="text-xs font-semibold text-white">Slack Alert Sent</span>
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 ml-auto" />
+                    </div>
+                    <div className="px-4 py-3 space-y-2">
+                      {/* DM to GSOC Officer */}
+                      <div className="flex items-start gap-2.5">
+                        <MessageSquare className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: '#E8D5FF' }} />
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold" style={{ color: '#E8D5FF' }}>DM → GSOC Officer (R. Chen)</p>
+                          <div className="mt-1 rounded-lg p-2 font-mono text-[9px] space-y-0.5" style={{ background: '#0a0c0d', borderLeft: '2px solid #4A154B' }}>
+                            <p className="text-white/50">🔔 <span className="text-emerald-400">RESOLVED</span> · ACE Resolution Agent</p>
+                            <p className="text-white/35">Goal: {goalInput || "Investigation complete"}</p>
+                            <p className="text-white/35">Actions: {run.actions.length} executed · {autoCount} auto · {approvalCount} approved</p>
+                            <p className="text-white/35">Status: Closed — no further action required</p>
+                            <p style={{ color: '#4A154B80' }}>via Overhaul ACE · Control Tower</p>
+                          </div>
+                        </div>
+                      </div>
+                      {/* Channel post */}
+                      <div className="flex items-start gap-2.5">
+                        <Hash className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: '#E8D5FF' }} />
+                        <div>
+                          <p className="text-[10px] font-semibold" style={{ color: '#E8D5FF' }}>#gsoc-alerts · 4 subscribers notified</p>
+                          <p className="text-[9px] text-white/35 mt-0.5">Resolution summary posted to channel</p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
                 </motion.div>
               )}
             </div>

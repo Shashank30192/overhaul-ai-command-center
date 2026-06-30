@@ -245,8 +245,8 @@ export function RiskMonitorDashboard() {
 
   return (
     <div
-      className="flex h-[calc(100vh-4rem-33px)] overflow-hidden relative"
-      style={{ background: "#0d0f10", color: "#e5e7eb" }}
+      className="flex overflow-hidden"
+      style={{ background: "#0d0f10", color: "#e5e7eb", position: "fixed", top: 65, left: 0, right: 0, bottom: 0 }}
     >
       {/* ── Left sidebar ── */}
       <aside

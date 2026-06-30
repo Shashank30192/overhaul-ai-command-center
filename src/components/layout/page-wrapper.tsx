@@ -16,12 +16,12 @@ export function PageWrapper({ children, className, title, subtitle }: PageWrappe
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4 }}
-      className={cn("mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-8", className)}
+      className={cn("mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 py-5", className)}
     >
       {(title || subtitle) && (
-        <div className="mb-8">
-          {title && <h1 className="text-3xl font-bold text-white tracking-tight">{title}</h1>}
-          {subtitle && <p className="mt-2 text-[var(--mil-muted)] text-lg">{subtitle}</p>}
+        <div className="mb-5 flex items-center gap-3 border-b border-[var(--mil-border)] pb-4">
+          {title && <h1 className="text-sm font-semibold text-white tracking-tight">{title}</h1>}
+          {subtitle && <p className="text-xs text-[var(--mil-muted)] border-l border-[var(--mil-border)] pl-3">{subtitle}</p>}
         </div>
       )}
       {children}
