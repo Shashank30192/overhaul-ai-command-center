@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Overhaul — Carrier Risk Dashboard</title>
+<script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #fff; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 3px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useMemo } = React;
+
+// ─── SVG Icon Components ─────────────────────────────────────────────────────
+const I = ({ d, size = 16, className = "", stroke = "currentColor", fill = "none" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={stroke}
+    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    {typeof d === "string" ? <path d={d} /> : d}
+  </svg>
+);
+
+const ChevronDown = ({ size = 16, className = "" }) => <I size={size} className={className} d="m6 9 6 6 6-6" />;
+const ChevronUp = ({ size = 16, className = "" }) => <I size={size} className={className} d="m18 15-6-6-6 6" />;
+const SearchIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></>} />;
+const SlidersH = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><circle cx="12" cy="4" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="14" cy="20" r="2"/></>} />;
+const ShieldIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></>} />;
+const ShieldCheck = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></>} />;
+const ShieldBan = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m4.243 5.21 14.39 12.472"/></>} />;
+const MapPinIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></>} />;
+const HashIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><line x1="4" x2="20" y1="9" y2="9"/><line x1="4" x2="20" y1="15" y2="15"/><line x1="10" x2="8" y1="3" y2="21"/><line x1="16" x2="14" y1="3" y2="21"/></>} />;
+const UserIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>} />;
+const PhoneIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></>} />;
+const MailIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></>} />;
+const ShieldUser = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><circle cx="12" cy="11" r="2.5"/><path d="M12 13.5c-2 0-3.5 1-3.5 2.5v.5h7v-.5c0-1.5-1.5-2.5-3.5-2.5z"/></>} />;
+const AlertTriIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></>} />;
+const CheckCircle = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></>} />;
+const InfoIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></>} />;
+const BarChart = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></>} />;
+const TruckIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.624l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/></>} />;
+const ContainerIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><rect width="20" height="8" x="2" y="8" rx="1"/><path d="M6 8V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M6 16v2a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-2"/></>} />;
+const UsersIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></>} />;
+const ListFilterIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></>} />;
+const CircleAlertIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></>} />;
+const LandmarkIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><line x1="3" x2="21" y1="22" y2="22"/><line x1="6" x2="6" y1="18" y2="11"/><line x1="10" x2="10" y1="18" y2="11"/><line x1="14" x2="14" y1="18" y2="11"/><line x1="18" x2="18" y1="18" y2="11"/><polygon points="12 2 20 7 4 7"/></>} />;
+const ActivityIcon = ({ size = 16, className = "" }) => <I size={size} className={className} d={<><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></>} />;
+
+// ─── Data ────────────────────────────────────────────────────────────────────
+
+const carriers = [
+  {
+    id: 1, name: "Fast Transport Trucking", score: 100, status: "new",
+    subtext: "Limited operational history", extras: "+3 more",
+    trucks: 21, trailers: 28, drivers: 13,
+    usdot: "145458855", mcNumber: "45464547",
+    legalName: "Fast Transport LLC", tradeName: "Fast Transport",
+    security: {
+      scoreImpact: 93,
+      badActor: {
+        threatCount: 3, scoreImpact: 45, expanded: true,
+        checks: [
+          { name: "Address check", icon: MapPinIcon, threat: true, count: 1, detail: "Address matches bad actor's" },
+          { name: "USDOT matches", icon: HashIcon, threat: false, detail: "No threads found" },
+          { name: "Name matches", icon: UserIcon, threat: false, detail: "No threads found" },
+          { name: "Phone matches", icon: PhoneIcon, threat: false, detail: "No threads found" },
+          { name: "Email matches", icon: MailIcon, threat: true, count: 1, detail: "No threads found" },
+          { name: "First Officer check", icon: ShieldUser, threat: true, count: 1, detail: "No threads found" }
+        ],
+        dataPoints: 304
+      },
+      operationalHistory: { threatCount: 0, scoreImpact: 0 }
+    },
+    authority: { fmcsa: "no_threat" }
+  },
+  {
+    id: 2, name: "General Logistics", score: 100, status: "new",
+    subtext: "No active FMCSA authority", extras: "+3 more",
+    trucks: 12, trailers: 18, drivers: 8,
+    usdot: "234567890", mcNumber: "34567890",
+    legalName: "General Logistics LLC", tradeName: "General Logistics",
+    security: {
+      scoreImpact: 93,
+      badActor: { threatCount: 1, scoreImpact: 23, expanded: false, checks: [], dataPoints: 178 },
+      operationalHistory: { threatCount: 1, scoreImpact: 23 }
+    },
+    authority: { fmcsa: "no_threat" }
+  },
+  {
+    id: 3, name: "Globex Transportation", score: 50, status: "new",
+    subtext: "Possible criminal organization", extras: "",
+    trucks: 21, trailers: 28, drivers: 13,
+    usdot: "145458855", mcNumber: "45464547",
+    legalName: "Fast Transport LLC", tradeName: "Fast Transport",
+    security: {
+      scoreImpact: 93,
+      badActor: { threatCount: 1, scoreImpact: 23, expanded: false, checks: [], dataPoints: 210 },
+      operationalHistory: { threatCount: 1, scoreImpact: 23 }
+    },
+    authority: { fmcsa: "no_threat" }
+  },
+  {
+    id: 4, name: "Wheels Inc", score: 100, status: "new",
+    subtext: "No active FMCSA authority", extras: "+1 more",
+    trucks: 9, trailers: 14, drivers: 6,
+    usdot: "345678901", mcNumber: "45678901",
+    legalName: "Wheels Inc LLC", tradeName: "Wheels Inc",
+    security: {
+      scoreImpact: 72,
+      badActor: { threatCount: 0, scoreImpact: 0, expanded: false, checks: [], dataPoints: 95 },
+      operationalHistory: { threatCount: 1, scoreImpact: 23 }
+    },
+    authority: { fmcsa: "no_threat" }
+  },
+  {
+    id: 5, name: "Trust Wheels", score: 100, status: "new",
+    subtext: "No active FMCSA authority", extras: "",
+    trucks: 6, trailers: 10, drivers: 4,
+    usdot: "456789012", mcNumber: "56789012",
+    legalName: "Trust Wheels LLC", tradeName: "Trust Wheels",
+    security: {
+      scoreImpact: 61,
+      badActor: { threatCount: 0, scoreImpact: 0, expanded: false, checks: [], dataPoints: 76 },
+      operationalHistory: { threatCount: 0, scoreImpact: 0 }
+    },
+    authority: { fmcsa: "threat" }
+  },
+  {
+    id: 6, name: "Kentucky Roads", score: 100, status: "trusted",
+    subtext: "No threats identified", extras: "",
+    trucks: 45, trailers: 60, drivers: 38,
+    usdot: "567890123", mcNumber: "67890123",
+    legalName: "Kentucky Roads Inc", tradeName: "Kentucky Roads",
+    security: {
+      scoreImpact: 0,
+      badActor: { threatCount: 0, scoreImpact: 0, expanded: false, checks: [], dataPoints: 422 },
+      operationalHistory: { threatCount: 0, scoreImpact: 0 }
+    },
+    authority: { fmcsa: "no_threat" }
+  },
+  {
+    id: 7, name: "Hauling & Sons", score: 100, status: "trusted",
+    subtext: "No threats identified", extras: "",
+    trucks: 32, trailers: 44, drivers: 27,
+    usdot: "678901234", mcNumber: "78901234",
+    legalName: "Hauling and Sons LLC", tradeName: "Hauling & Sons",
+    security: {
+      scoreImpact: 0,
+      badActor: { threatCount: 0, scoreImpact: 0, expanded: false, checks: [], dataPoints: 387 },
+      operationalHistory: { threatCount: 0, scoreImpact: 0 }
+    },
+    authority: { fmcsa: "no_threat" }
+  }
+];
+
+function scoreColor(score) {
+  if (score >= 70) return "#ef4444";
+  if (score >= 40) return "#f59e0b";
+  return "#22c55e";
+}
+
+// ─── Top Nav ─────────────────────────────────────────────────────────────────
+
+function TopNav() {
+  const links = [
+    { label: "Dashboards", dropdown: true, active: true },
+    { label: "Reports" },
+    { label: "Visibility", dropdown: true },
+    { label: "Risk Monitoring" },
+    { label: "Setup", dropdown: true },
+    { label: "Admin", dropdown: true },
+    { label: "Insights" },
+  ];
+  return (
+    <nav className="h-12 bg-[#0a0a0a] flex items-center px-6 justify-between shrink-0">
+      <div className="flex items-center gap-8">
+        <div className="flex items-center gap-2">
+          <svg width="28" height="16" viewBox="0 0 28 16" fill="none">
+            <path d="M4 8L10 2L16 8L10 14L4 8Z" fill="#22c55e"/>
+            <path d="M10 8L16 2L22 8L16 14L10 8Z" fill="#22c55e" opacity="0.6"/>
+          </svg>
+          <span className="text-white font-bold text-sm tracking-wider">OVERHAUL</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {links.map((l) => (
+            <button key={l.label}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded text-[13px] transition-colors ${
+                l.active ? "bg-[#1a1a2e] text-white" : "text-gray-300 hover:text-white"
+              }`}>
+              {l.label}
+              {l.dropdown && <ChevronDown size={12} className="opacity-50" />}
+            </button>
+          ))}
+        </div>
+      </div>
+      <button className="flex items-center gap-2 text-white text-[13px]">
+        <div className="text-right">
+          <div className="font-medium">Kendra A. Travis</div>
+          <div className="text-[10px] text-gray-400">Watch Officer</div>
+        </div>
+        <ChevronDown size={14} className="text-gray-400" />
+      </button>
+    </nav>
+  );
+}
+
+// ─── Left Panel ──────────────────────────────────────────────────────────────
+
+function LeftPanel({ carriers: list, selected, onSelect, filter, setFilter, search, setSearch }) {
+  const tabs = [
+    { id: "all", label: "All", icon: null },
+    { id: "trusted", label: "Trusted", icon: ShieldCheck },
+    { id: "new", label: "New", badge: true },
+    { id: "unauthorized", label: "Unauthorized", icon: ShieldBan },
+  ];
+
+  return (
+    <aside className="w-[340px] shrink-0 border-r border-gray-200 flex flex-col bg-white">
+      <div className="px-4 pt-5 pb-3 border-b border-gray-200">
+        <h1 className="text-lg font-bold text-gray-900 mb-4">Carrier Risk Dashboard</h1>
+        <div className="flex gap-0.5 mb-4">
+          {tabs.map((t) => (
+            <button key={t.id} onClick={() => setFilter(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-[13px] font-medium border-b-2 transition-colors ${
+                filter === t.id
+                  ? "border-blue-600 text-blue-700"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}>
+              {t.icon && <t.icon size={14} />}
+              {t.badge && (
+                <span className="px-1.5 py-0.5 bg-teal-500 text-white text-[9px] font-bold rounded-sm">NEW</span>
+              )}
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <div className="flex-1 flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg bg-white">
+            <SearchIcon size={16} className="text-gray-400 shrink-0" />
+            <input value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search"
+              className="flex-1 text-[13px] outline-none bg-transparent placeholder:text-gray-400" />
+          </div>
+          <button className="px-3 py-2 border border-gray-300 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors">
+            <SlidersH size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {list.map((c) => {
+          const isSelected = selected?.id === c.id;
+          const isTrusted = c.subtext === "No threats identified";
+          return (
+            <button key={c.id} onClick={() => onSelect(c)}
+              className={`w-full text-left px-4 py-3.5 border-b border-gray-100 transition-colors ${
+                isSelected ? "bg-[#eff6ff] border-l-[3px] border-l-blue-500" : "hover:bg-gray-50 border-l-[3px] border-l-transparent"
+              }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[14px] font-semibold text-gray-900 truncate">{c.name}</div>
+                  <div className="flex items-center gap-1.5 mt-1">
+                    {isTrusted ? (
+                      <>
+                        <CheckCircle size={13} className="text-green-500 shrink-0" />
+                        <span className="text-[12px] text-green-600">{c.subtext}</span>
+                      </>
+                    ) : (
+                      <>
+                        <CircleAlertIcon size={13} className="text-amber-500 shrink-0" />
+                        <span className="text-[12px] text-gray-500">{c.subtext}</span>
+                        {c.extras && <span className="text-[12px] text-gray-400 ml-1">{c.extras}</span>}
+                      </>
+                    )}
+                  </div>
+                </div>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-[12px] font-bold shrink-0 ml-3"
+                  style={{ backgroundColor: scoreColor(c.score) }}>
+                  {c.score}
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </aside>
+  );
+}
+
+// ─── Check Card ──────────────────────────────────────────────────────────────
+
+function CheckCard({ check }) {
+  const IconComp = check.icon || ShieldIcon;
+  return (
+    <div className={`relative rounded-lg border p-4 ${check.threat ? "border-red-400 border-2" : "border-gray-200"}`}>
+      <div className={`absolute top-0 right-0 px-2.5 py-1 rounded-bl-lg rounded-tr-lg text-[11px] font-semibold flex items-center gap-1 ${
+        check.threat
+          ? "bg-red-50 text-red-600 border-b border-l border-red-300"
+          : "bg-green-50 text-green-600 border-b border-l border-green-200"
+      }`}>
+        {check.threat ? (
+          <span>+{check.count} threat</span>
+        ) : (
+          <><CheckCircle size={11} /> No threats</>
+        )}
+      </div>
+      <div className="mt-2">
+        <IconComp size={22} className={`${check.threat ? "text-red-500" : "text-gray-400"} mb-3`} />
+        <div className={`text-[14px] font-semibold mb-1 ${check.threat ? "text-red-700" : "text-gray-900"}`}>{check.name}</div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[12px] text-gray-500">{check.detail}</span>
+          {check.threat && <InfoIcon size={14} className="text-gray-400 shrink-0 cursor-pointer" />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Subsection Row ──────────────────────────────────────────────────────────
+
+function SubsectionRow({ icon: Icon, title, description, threatCount, scoreImpact, expanded, onToggle, children }) {
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      <button onClick={onToggle} className="w-full flex items-center justify-between px-4 py-3.5 hover:bg-gray-50 transition-colors">
+        <div className="flex items-center gap-3">
+          <Icon size={18} className="text-gray-500" />
+          <div className="text-left">
+            <span className="text-[14px] font-semibold text-gray-900">{title}</span>
+            <span className="text-[12px] text-gray-500 ml-2">{description}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-3">
+          {threatCount > 0 ? (
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-red-50 border border-red-200 text-[12px] font-semibold text-red-600">
+              <AlertTriIcon size={13} />
+              {threatCount} threat{threatCount !== 1 ? "s" : ""} identified
+              <span className="text-red-500 font-bold ml-1">+{scoreImpact}</span>
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-green-50 border border-green-200 text-[12px] font-semibold text-green-600">
+              <CheckCircle size={13} />
+              No threats
+            </span>
+          )}
+          {expanded ? <ChevronUp size={18} className="text-gray-400" /> : <ChevronDown size={18} className="text-gray-400" />}
+        </div>
+      </button>
+      {expanded && children && (
+        <div className="border-t border-gray-200 px-4 py-4 bg-white">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Right Panel ─────────────────────────────────────────────────────────────
+
+function RightPanel({ carrier }) {
+  const [sections, setSections] = useState({});
+
+  const key = (cid, section) => `${cid}-${section}`;
+
+  const isExpanded = (section) => {
+    const k = key(carrier.id, section);
+    if (sections[k] !== undefined) return sections[k];
+    if (section === "badActor") return carrier.security.badActor.expanded;
+    return false;
+  };
+
+  const toggle = (section) => {
+    const k = key(carrier.id, section);
+    setSections((prev) => ({ ...prev, [k]: !isExpanded(section) }));
+  };
+
+  const ba = carrier.security.badActor;
+  const oh = carrier.security.operationalHistory;
+  const hasChecks = ba.checks && ba.checks.length > 0;
+
+  return (
+    <main className="flex-1 min-w-0 bg-white overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-[14px] font-bold"
+            style={{ backgroundColor: scoreColor(carrier.score) }}>
+            {carrier.score}
+          </div>
+          <h2 className="text-xl font-bold text-gray-900">{carrier.name}</h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="flex items-center gap-1.5 px-4 py-2 bg-[#1e3a5f] text-white text-[13px] font-medium rounded-lg hover:bg-[#16304f] transition-colors">
+            <span className="px-1.5 py-0.5 bg-teal-400 text-[8px] font-bold text-white rounded-sm leading-none">NEW</span>
+            New
+            <ChevronDown size={14} className="opacity-60" />
+          </button>
+          <button className="flex items-center gap-2 px-4 py-2 border border-gray-300 text-gray-700 text-[13px] font-medium rounded-lg hover:bg-gray-50 transition-colors">
+            <ListFilterIcon size={15} />
+            Activity Feed
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+          </button>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div className="flex items-center gap-5 px-6 py-3 border-b border-gray-200 text-[13px] flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <TruckIcon size={14} className="text-gray-400" />
+          <span className="font-bold text-gray-900">{carrier.trucks}</span>
+          <span className="text-gray-500">Trucks</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <ContainerIcon size={14} className="text-gray-400" />
+          <span className="font-bold text-gray-900">{carrier.trailers}</span>
+          <span className="text-gray-500">Trailers</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <UsersIcon size={14} className="text-gray-400" />
+          <span className="font-bold text-gray-900">{carrier.drivers}</span>
+          <span className="text-gray-500">Drivers</span>
+        </div>
+        <div className="w-px h-5 bg-gray-200" />
+        <div><span className="text-gray-500">USDOT </span><span className="font-bold text-gray-900">{carrier.usdot}</span></div>
+        <div><span className="text-gray-500">MC Number </span><span className="font-bold text-gray-900">{carrier.mcNumber}</span></div>
+        <div><span className="text-gray-500">Legal Name </span><span className="font-bold text-gray-900">{carrier.legalName}</span></div>
+        <div><span className="text-gray-500">Trade Name </span><span className="font-bold text-gray-900">{carrier.tradeName}</span></div>
+      </div>
+
+      {/* Security section */}
+      <div className="mx-6 mt-5 mb-4">
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2 mb-1">
+              <ShieldIcon size={18} className="text-gray-500" />
+              <span className="text-[16px] font-bold text-gray-900">Security</span>
+              {carrier.security.scoreImpact > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[12px] font-bold text-red-600 bg-red-50 border border-red-200">
+                  +{carrier.security.scoreImpact}
+                </span>
+              )}
+            </div>
+            <p className="text-[12px] text-gray-500 leading-relaxed">
+              Is the carrier who they say they are? Does their FMCSA profile match any known criminal organisations / individuals?
+            </p>
+          </div>
+          <div className="p-4 space-y-3">
+            <SubsectionRow
+              icon={UsersIcon}
+              title="Bad Actor Check"
+              description="Carrier's details match known criminal organisations."
+              threatCount={ba.threatCount}
+              scoreImpact={ba.scoreImpact}
+              expanded={isExpanded("badActor")}
+              onToggle={() => toggle("badActor")}
+            >
+              {hasChecks && (
+                <>
+                  <div className="grid grid-cols-3 gap-3 mb-3">
+                    {ba.checks.map((check, i) => (
+                      <CheckCard key={i} check={check} />
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[12px] text-gray-400 italic pt-1">
+                    <BarChart size={14} />
+                    {ba.dataPoints} data points analyzed
+                  </div>
+                </>
+              )}
+              {!hasChecks && (
+                <div className="flex items-center gap-1.5 text-[12px] text-gray-400 italic">
+                  <BarChart size={14} />
+                  {ba.dataPoints} data points analyzed
+                </div>
+              )}
+            </SubsectionRow>
+
+            <SubsectionRow
+              icon={ActivityIcon}
+              title="Operational History"
+              description="Carrier's details match known criminal organisations."
+              threatCount={oh.threatCount}
+              scoreImpact={oh.scoreImpact}
+              expanded={isExpanded("opHistory")}
+              onToggle={() => toggle("opHistory")}
+            >
+              <div className="text-[12px] text-gray-500">
+                Operational history analysis complete. {oh.threatCount === 0 ? "No anomalies detected." : `${oh.threatCount} concern(s) flagged.`}
+              </div>
+            </SubsectionRow>
+          </div>
+        </div>
+      </div>
+
+      {/* Authority section */}
+      <div className="mx-6 mb-6">
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100">
+            <div className="flex items-center gap-2 mb-1">
+              <LandmarkIcon size={18} className="text-gray-500" />
+              <span className="text-[16px] font-bold text-gray-900">Authority</span>
+            </div>
+            <p className="text-[12px] text-gray-500 leading-relaxed">
+              Is the carrier's USDOT status active according to the FMCSA?
+            </p>
+          </div>
+          <div className="p-4">
+            <SubsectionRow
+              icon={UsersIcon}
+              title="FMCSA Status"
+              description="Carrier's details match known criminal organisations."
+              threatCount={carrier.authority.fmcsa === "threat" ? 1 : 0}
+              scoreImpact={carrier.authority.fmcsa === "threat" ? 15 : 0}
+              expanded={isExpanded("fmcsa")}
+              onToggle={() => toggle("fmcsa")}
+            >
+              <div className="text-[12px] text-gray-500">
+                {carrier.authority.fmcsa === "no_threat"
+                  ? "FMCSA authority status is active and verified. No issues detected."
+                  : "FMCSA authority status flagged — carrier may have inactive or revoked operating authority."}
+              </div>
+            </SubsectionRow>
+          </div>
+        </div>
+      </div>
+    </main>
+  );
+}
+
+// ─── App ─────────────────────────────────────────────────────────────────────
+
+function App() {
+  const [selected, setSelected] = useState(carriers[0]);
+  const [filter, setFilter] = useState("all");
+  const [search, setSearch] = useState("");
+
+  const filtered = useMemo(() => {
+    return carriers.filter((c) => {
+      const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
+      if (!matchSearch) return false;
+      if (filter === "all") return true;
+      if (filter === "trusted") return c.status === "trusted";
+      if (filter === "new") return c.status === "new";
+      if (filter === "unauthorized") return c.status === "unauthorized";
+      return true;
+    });
+  }, [filter, search]);
+
+  return (
+    <div className="h-screen flex flex-col">
+      <TopNav />
+      <div className="flex flex-1 min-h-0">
+        <LeftPanel
+          carriers={filtered}
+          selected={selected}
+          onSelect={setSelected}
+          filter={filter}
+          setFilter={setFilter}
+          search={search}
+          setSearch={setSearch}
+        />
+        <RightPanel carrier={selected} />
+      </div>
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<App />);
+</script>
+</body>
+</html>

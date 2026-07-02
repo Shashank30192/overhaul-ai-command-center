@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, RotateCcw, Bot, CheckCircle2, Loader2, Cpu,
   ArrowRight, Zap, ChevronRight, AlertTriangle, Clock,
   Thermometer, ShieldCheck, FileText, Search, Hash, MessageSquare,
+  Network, Brain, ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -22,6 +23,7 @@ import { AgentViewport } from "./agent-viewport";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type AgentPhase = "idle" | "running" | "complete";
+type A2APhase = "idle" | "gate1" | "sub_running" | "gate2" | "analysis_running" | "gate3" | "done";
 
 interface AgentDecision {
   action: "call-driver" | "contact-carrier" | "waive" | "escalate-police";
@@ -51,6 +53,12 @@ interface RunState {
   result?: WorkflowResult;
 }
 
+interface PendingApproval {
+  label: string;
+  description: string;
+  resolve: (approved: boolean) => void;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function sleep(ms: number) {
@@ -68,7 +76,6 @@ function ResultCard({ result }: { result: WorkflowResult }) {
         <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
         <p className="text-sm font-semibold text-white">{result.headline}</p>
       </div>
-
       <div className="px-4 py-3 grid grid-cols-2 gap-x-6 gap-y-1.5">
         {Object.entries(result.data).map(([k, v]) => (
           <div key={k} className="flex items-start gap-2">
@@ -77,7 +84,6 @@ function ResultCard({ result }: { result: WorkflowResult }) {
           </div>
         ))}
       </div>
-
       <div className="px-4 pb-3 flex flex-wrap gap-2">
         {result.actions.map((action) => (
           <button
@@ -108,7 +114,191 @@ function renderMd(text: string) {
   );
 }
 
+// ─── Approval gate (inline in chat) ──────────────────────────────────────────
+
+function ApprovalGate({ approval, onApprove, onDecline }: {
+  approval: PendingApproval;
+  onApprove: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-amber-500/40 bg-amber-500/8 p-3 mx-1">
+      <div className="flex items-center gap-1.5 mb-2">
+        <div className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+        <p className="text-[9px] uppercase tracking-widest text-amber-400 font-semibold">Human Approval Required</p>
+      </div>
+      <p className="text-xs font-semibold text-white mb-1">{approval.label}</p>
+      <p className="text-[11px] text-white/60 leading-relaxed mb-3">{approval.description}</p>
+      <div className="flex gap-2">
+        <button onClick={onApprove}
+          className="flex-1 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-500 transition-colors">
+          Approve
+        </button>
+        <button onClick={onDecline}
+          className="flex-1 py-1.5 rounded-lg bg-[var(--mil-elevated)] border border-[var(--mil-border)] text-white/60 text-xs font-medium hover:text-white transition-colors">
+          Skip
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── A2A cards (in action feed) ───────────────────────────────────────────────
+
+function A2AFeedCards({
+  a2aPhase,
+  gsocVerdict,
+  onGate1,
+  onGate2,
+  onGate3Confirm,
+  onGate3Dismiss,
+}: {
+  a2aPhase: A2APhase;
+  gsocVerdict: "action_required" | "false_indicator" | null;
+  onGate1: () => void;
+  onGate2: () => void;
+  onGate3Confirm: () => void;
+  onGate3Dismiss: () => void;
+}) {
+  return (
+    <>
+      {/* A2A gate 1 */}
+      {a2aPhase === "gate1" && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+          className="shrink-0 rounded-lg border border-amber-500/40 bg-amber-500/8 px-3 py-2 min-w-[200px]">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[9px] text-amber-400 font-semibold uppercase tracking-wide">Approval Required</span>
+          </div>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Network className="h-3 w-3 text-violet-400 shrink-0" />
+            <p className="text-[10px] text-white font-semibold">Spawn A2A Sub-Agent?</p>
+          </div>
+          <p className="text-[9px] text-white/50 leading-tight mb-2">
+            Deep cross-system analysis with elevated API permissions
+          </p>
+          <div className="flex gap-1.5">
+            <button onClick={onGate1}
+              className="flex-1 py-1 rounded bg-violet-600 text-white text-[9px] font-semibold hover:bg-violet-500 transition-colors">
+              Approve
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Sub-agent running */}
+      {(a2aPhase === "sub_running" || a2aPhase === "gate2") && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+          className="shrink-0 rounded-lg border border-violet-500/30 bg-violet-500/5 px-3 py-2 min-w-[160px]">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Network className="h-3 w-3 text-violet-400" />
+              <span className="text-[9px] font-semibold text-violet-300">A2A Sub-Agent</span>
+            </div>
+            {a2aPhase === "sub_running"
+              ? <Loader2 className="h-3 w-3 text-violet-400 animate-spin" />
+              : <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+          </div>
+          <p className="text-[9px] text-white/40 leading-tight">carrier-intel-v2 · Scanning APIs…</p>
+        </motion.div>
+      )}
+
+      {/* A2A gate 2 */}
+      {a2aPhase === "gate2" && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+          className="shrink-0 rounded-lg border border-amber-500/40 bg-amber-500/8 px-3 py-2 min-w-[200px]">
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <div className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[9px] text-amber-400 font-semibold uppercase tracking-wide">Approval Required</span>
+          </div>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Brain className="h-3 w-3 text-cyan-400 shrink-0" />
+            <p className="text-[10px] text-white font-semibold">Spawn Analysis Agent?</p>
+          </div>
+          <p className="text-[9px] text-white/50 leading-tight mb-2">
+            Evaluate GSOC action needed vs false indicator
+          </p>
+          <button onClick={onGate2}
+            className="w-full py-1 rounded bg-cyan-700 text-white text-[9px] font-semibold hover:bg-cyan-600 transition-colors">
+            Approve
+          </button>
+        </motion.div>
+      )}
+
+      {/* Analysis agent running */}
+      {(a2aPhase === "analysis_running" || a2aPhase === "gate3" || a2aPhase === "done") && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+          className="shrink-0 rounded-lg border border-cyan-500/30 bg-cyan-500/5 px-3 py-2 min-w-[160px]">
+          <div className="flex items-center justify-between mb-1.5">
+            <div className="flex items-center gap-1.5">
+              <Brain className="h-3 w-3 text-cyan-400" />
+              <span className="text-[9px] font-semibold text-cyan-300">Analysis Agent</span>
+            </div>
+            {a2aPhase === "analysis_running"
+              ? <Loader2 className="h-3 w-3 text-cyan-400 animate-spin" />
+              : <CheckCircle2 className="h-3 w-3 text-emerald-400" />}
+          </div>
+          <p className="text-[9px] text-white/40 leading-tight">gsoc-eval-v3 · Assessing…</p>
+        </motion.div>
+      )}
+
+      {/* Gate 3: GSOC verdict */}
+      {a2aPhase === "gate3" && gsocVerdict && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+          className={cn("shrink-0 rounded-lg border px-3 py-2 min-w-[200px]",
+            gsocVerdict === "action_required"
+              ? "border-red-500/40 bg-red-500/8"
+              : "border-emerald-500/30 bg-emerald-500/8")}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            {gsocVerdict === "action_required"
+              ? <ShieldAlert className="h-3 w-3 text-red-400" />
+              : <ShieldCheck className="h-3 w-3 text-emerald-400" />}
+            <span className={cn("text-[9px] font-bold uppercase tracking-wide",
+              gsocVerdict === "action_required" ? "text-red-300" : "text-emerald-300")}>
+              GSOC: {gsocVerdict === "action_required" ? "Action Required" : "False Indicator"}
+            </span>
+          </div>
+          <p className="text-[9px] text-white/50 leading-tight mb-2">
+            {gsocVerdict === "action_required"
+              ? "Analysis agent flags this for GSOC intervention"
+              : "91% confidence — driver rest stop, no threat detected"}
+          </p>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <div className="h-1 w-1 rounded-full bg-amber-400 animate-pulse" />
+            <span className="text-[8px] text-amber-400 uppercase tracking-wide">Approval needed</span>
+          </div>
+          <div className="flex gap-1.5">
+            <button onClick={onGate3Confirm}
+              className={cn("flex-1 py-1 rounded text-white text-[9px] font-semibold transition-colors",
+                gsocVerdict === "action_required" ? "bg-red-600 hover:bg-red-500" : "bg-emerald-600 hover:bg-emerald-500")}>
+              {gsocVerdict === "action_required" ? "Notify GSOC" : "Confirm"}
+            </button>
+            <button onClick={onGate3Dismiss}
+              className="px-2 py-1 rounded bg-white/5 border border-white/10 text-white/40 text-[9px] hover:text-white transition-colors">
+              Override
+            </button>
+          </div>
+        </motion.div>
+      )}
+
+      {/* Done */}
+      {a2aPhase === "done" && (
+        <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+          className="shrink-0 rounded-lg border border-emerald-500/25 bg-emerald-500/5 px-3 py-2 min-w-[140px] flex flex-col items-center justify-center gap-1">
+          <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+          <span className="text-[9px] font-semibold text-emerald-300 text-center">A2A Chain Complete</span>
+          <span className="text-[8px] text-emerald-400/60">GSOC updated</span>
+        </motion.div>
+      )}
+    </>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
+
+// Actions whose target labels suggest high-impact — require human approval
+const HIGH_IMPACT_PATTERN = /alert|contact|notify|send|flag|escalate|dispatch|report/i;
 
 export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -122,8 +312,12 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   const [run, setRun] = useState<RunState | null>(null);
   const [result, setResult] = useState<WorkflowResult | null>(null);
   const [agentDecision, setAgentDecision] = useState<AgentDecision | null>(null);
+  const [pendingApproval, setPendingApproval] = useState<PendingApproval | null>(null);
+  const [a2aPhase, setA2aPhase] = useState<A2APhase>("idle");
+  const [gsocVerdict, setGsocVerdict] = useState<"action_required" | "false_indicator" | null>(null);
   const abortRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const a2aTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const scrollBottom = useCallback((smooth = true) => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" }), 60);
@@ -131,7 +325,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
   const addMessage = useCallback((msg: Omit<ChatMessage, "id">) => {
     setMessages((prev) => [...prev, { ...msg, id: `msg-${Date.now()}-${Math.random()}` }]);
-    // Only scroll for user messages and system completion messages — not mid-workflow agent updates
     if (msg.role === "user" || msg.role === "system") scrollBottom();
   }, [scrollBottom]);
 
@@ -189,14 +382,68 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     }
   }, []);
 
+  // Request approval — pauses workflow until user responds
+  const requestApproval = useCallback((label: string, description: string): Promise<boolean> => {
+    return new Promise<boolean>((resolve) => {
+      setPendingApproval({ label, description, resolve });
+    });
+  }, []);
+
+  const handleApprovalApprove = useCallback(() => {
+    setPendingApproval((prev) => { prev?.resolve(true); return null; });
+  }, []);
+
+  const handleApprovalDecline = useCallback(() => {
+    setPendingApproval((prev) => { prev?.resolve(false); return null; });
+  }, []);
+
+  // Start A2A chain after main workflow completes
+  const startA2AChain = useCallback(() => {
+    a2aTimersRef.current.forEach(clearTimeout);
+    a2aTimersRef.current = [];
+
+    setA2aPhase("gate1");
+
+    // Gate 1 → sub_running → gate2 → analysis_running → gate3 (handled by user clicks)
+    // The timers here auto-advance between sub-steps once gates are approved
+  }, []);
+
+  const handleA2AGate1 = useCallback(() => {
+    setA2aPhase("sub_running");
+    const t = setTimeout(() => setA2aPhase("gate2"), 2200);
+    a2aTimersRef.current.push(t);
+  }, []);
+
+  const handleA2AGate2 = useCallback(() => {
+    setA2aPhase("analysis_running");
+    const t = setTimeout(() => {
+      setGsocVerdict("false_indicator");
+      setA2aPhase("gate3");
+    }, 3000);
+    a2aTimersRef.current.push(t);
+  }, []);
+
+  const handleA2AGate3Confirm = useCallback(() => {
+    setA2aPhase("done");
+    addMessage({ role: "system", content: "🛡️ GSOC determination: False indicator — no action required. Alert closed." });
+    scrollBottom();
+  }, [addMessage, scrollBottom]);
+
+  const handleA2AGate3Dismiss = useCallback(() => {
+    setA2aPhase("done");
+    addMessage({ role: "system", content: "⚠️ GSOC determination overridden by operator. Manual review logged." });
+    scrollBottom();
+  }, [addMessage, scrollBottom]);
+
   const executeWorkflow = useCallback(async (goal: string) => {
     abortRef.current = false;
-    const workflow = resolveWorkflow(goal);
+    setA2aPhase("idle");
+    setGsocVerdict(null);
+    a2aTimersRef.current.forEach(clearTimeout);
 
-    // Count total actions across all steps
+    const workflow = resolveWorkflow(goal);
     const totalSteps = workflow.steps.reduce((sum, s) => sum + s.actions.length, 0);
 
-    // Initial run state
     setRun({
       workflow,
       phase: "running",
@@ -211,10 +458,8 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       result: undefined,
     });
 
-    // Fire Groq for start message while workflow begins
     addMessage({ role: "agent", content: `Starting **${workflow.title}**…`, partial: true });
 
-    // For investigate-case, run AI severity decision in parallel
     const isInvestigate = /light.?stop|investigate|open case/i.test(goal);
     const decisionPromise = isInvestigate
       ? callAgentDecision("Shipment OH-84764, Risk Score: 98%, Theft Probability: 97%, Weekend transit vulnerability, Unauthorized stop detected, Driver not responding to automated check-in, Battery 92%, Cargo: high-value electronics, Route: São Paulo→Chicago")
@@ -233,7 +478,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     for (const workflowStep of workflow.steps) {
       if (abortRef.current) break;
 
-      // Navigate to screen
       setRun((prev) => prev ? {
         ...prev,
         currentScreenId: workflowStep.screen,
@@ -247,11 +491,23 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       for (const action of workflowStep.actions) {
         if (abortRef.current) break;
 
-        // Pick hotspot for this action
+        // Human approval gate for high-impact actions
+        if (action.type === "click" && HIGH_IMPACT_PATTERN.test(action.targetLabel)) {
+          const approved = await requestApproval(
+            `Approve: ${action.targetLabel}`,
+            `The agent wants to ${action.targetLabel.toLowerCase()} on your behalf. This will send a notification or take an action that affects external parties.`
+          );
+          if (!approved) {
+            addMessage({ role: "system", content: `↩ Skipped: ${action.targetLabel} (declined by operator)` });
+            globalStep++;
+            continue;
+          }
+          addMessage({ role: "system", content: `✓ Approved: ${action.targetLabel}` });
+        }
+
         const screenHotspots = SCREEN_HOTSPOTS[workflowStep.screen] ?? [];
         const hotspot = screenHotspots[workflowStep.actions.indexOf(action) % screenHotspots.length] ?? null;
 
-        // Move cursor to hotspot
         setRun((prev) => prev ? {
           ...prev,
           activeHotspot: hotspot,
@@ -263,7 +519,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
         await sleep(Math.min(action.durationMs * 0.4, 600));
 
-        // Click animation
         if (action.type === "click") {
           setRun((prev) => prev ? { ...prev, isClicking: true } : null);
           await sleep(200);
@@ -272,7 +527,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
         await sleep(action.durationMs * 0.6);
 
-        // Add completed step
         setRun((prev) => prev ? {
           ...prev,
           completedSteps: [...prev.completedSteps, action.targetLabel],
@@ -282,7 +536,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
         globalStep++;
       }
 
-      // Show result snippet mid-workflow — no scroll, let the viewport be the focus
       if (workflowStep.resultSnippet) {
         updateLastAgent(`${workflow.title}: working… (${workflowStep.resultSnippet})`);
       }
@@ -290,7 +543,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
     if (abortRef.current) return;
 
-    // Complete
     await sleep(500);
     setRun((prev) => prev ? {
       ...prev,
@@ -303,7 +555,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
     setResult(workflow.finalResult);
 
-    // Get LLM summary of results
     const resultData = workflow.finalResult.data as Record<string, string> | undefined;
     let finalMessages: ChatMessage[] = [];
     setMessages(prev => { finalMessages = prev; return prev; });
@@ -320,13 +571,18 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       role: "system",
       content: `📩 Slack alert sent → GSOC Officer (R. Chen) · #gsoc-alerts notified`,
     });
-  }, [addMessage, updateLastAgent, scrollBottom, callAgentLLM]);
+
+    // Trigger A2A chain after main workflow
+    await sleep(800);
+    startA2AChain();
+  }, [addMessage, updateLastAgent, callAgentLLM, callAgentDecision, requestApproval, startA2AChain]);
 
   const handleSend = useCallback((overrideText?: string) => {
     const trimmed = (overrideText ?? input).trim();
     if (!trimmed || (run?.phase === "running")) return;
     setInput("");
     setResult(null);
+    setAgentDecision(null);
     abortRef.current = true;
 
     addMessage({ role: "user", content: trimmed });
@@ -335,9 +591,13 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
   const handleReset = useCallback(() => {
     abortRef.current = true;
+    a2aTimersRef.current.forEach(clearTimeout);
     setRun(null);
     setResult(null);
     setAgentDecision(null);
+    setPendingApproval(null);
+    setA2aPhase("idle");
+    setGsocVerdict(null);
     setInput("");
     setMessages([{
       id: "welcome",
@@ -345,9 +605,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       content: "Hi! I'm your **Overhaul Self-Service Agent**. I can autonomously navigate the platform to track your shipments, file claims, generate risk reports, verify carriers, and more.\n\nWhat can I help you with today?",
     }]);
   }, []);
-
-  // Removed: was auto-scrolling on every message change, causing the view to
-  // jump to the bottom on every mid-workflow partial update during navigation.
 
   const isRunning = run?.phase === "running";
   const isIdle = !run;
@@ -430,6 +687,17 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
             ))}
           </AnimatePresence>
 
+          {/* Human approval gate — inline in chat */}
+          <AnimatePresence>
+            {pendingApproval && (
+              <ApprovalGate
+                approval={pendingApproval}
+                onApprove={handleApprovalApprove}
+                onDecline={handleApprovalDecline}
+              />
+            )}
+          </AnimatePresence>
+
           {/* Result card */}
           {result && (
             <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -438,7 +706,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
           )}
 
           {/* Typing indicator */}
-          {isRunning && (
+          {isRunning && !pendingApproval && (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex gap-3">
               <div className="h-7 w-7 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center shrink-0">
                 <Bot className="h-3.5 w-3.5 text-emerald-400" />
@@ -463,11 +731,9 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
         {!isRunning && messages.length <= 2 && (
           <div className="shrink-0 overflow-y-auto">
             {embedded ? (
-              /* Customer-specific issue cards */
               <div className="px-4 pb-3 space-y-2">
                 <p className="text-[10px] uppercase tracking-widest text-[var(--mil-muted)] mb-2 pt-3">Your active issues:</p>
 
-                {/* Tamper alert — high priority */}
                 {CUSTOMER_SHIPMENTS.filter(s => s.hasAlert).map(shp => (
                   <button key={shp.id} onClick={() => handleSend(`Investigate tamper alert on ${shp.id} — ${shp.alertType}`)}
                     className="w-full text-left rounded-xl border border-red-500/30 bg-red-500/5 p-3 hover:bg-red-500/10 transition-colors group">
@@ -492,7 +758,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                   </button>
                 ))}
 
-                {/* Delay warning */}
                 {CUSTOMER_SHIPMENTS.filter(s => s.status === "Minor Delay").map(shp => (
                   <button key={shp.id} onClick={() => handleSend(`Check delivery status and delay reason for ${shp.id}`)}
                     className="w-full text-left rounded-xl border border-amber-500/25 bg-amber-500/5 p-3 hover:bg-amber-500/10 transition-colors group">
@@ -517,7 +782,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                   </button>
                 ))}
 
-                {/* Cold chain shipment */}
                 {CUSTOMER_SHIPMENTS.filter(s => s.coldChain && !s.hasAlert && s.status !== "Minor Delay").map(shp => (
                   <button key={shp.id} onClick={() => handleSend(`Verify cold chain integrity for ${shp.id}`)}
                     className="w-full text-left rounded-xl border border-blue-500/20 bg-blue-500/5 p-3 hover:bg-blue-500/10 transition-colors group">
@@ -538,7 +802,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                   </button>
                 ))}
 
-                {/* Quick actions */}
                 <p className="text-[10px] uppercase tracking-widest text-[var(--mil-muted)] mb-1.5 mt-3">Quick actions:</p>
                 <div className="grid grid-cols-2 gap-1.5">
                   {[
@@ -556,7 +819,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                 </div>
               </div>
             ) : (
-              /* Generic suggestions for standalone page */
               <div className="px-5 pb-3">
                 <p className="text-[10px] uppercase tracking-widest text-[var(--mil-muted)] mb-2">Quick requests:</p>
                 <div className="space-y-1.5">
@@ -631,10 +893,16 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
             {isRunning && (
               <span className="ml-auto flex items-center gap-1.5 text-[10px] text-blue-300">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                Executing
+                {pendingApproval ? "Awaiting approval…" : "Executing"}
               </span>
             )}
-            {run?.phase === "complete" && (
+            {run?.phase === "complete" && a2aPhase !== "idle" && (
+              <span className="ml-auto flex items-center gap-1.5 text-[10px] text-violet-300">
+                <Network className="h-3 w-3" />
+                A2A chain active
+              </span>
+            )}
+            {run?.phase === "complete" && a2aPhase === "idle" && (
               <span className="ml-auto flex items-center gap-1.5 text-[10px] text-emerald-300">
                 <CheckCircle2 className="h-3 w-3" />
                 Complete
@@ -651,7 +919,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
               </div>
             )}
 
-            {/* AI Decision card — shown when Groq makes a severity decision */}
+            {/* AI Decision card */}
             {agentDecision && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }}
@@ -690,7 +958,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
             {run && (
               <div className="flex gap-2 items-start">
-                {/* Workflow steps as cards */}
                 {run.workflow.steps.map((step, stepIdx) => {
                   const stepActionsCompleted = run.completedSteps.length;
                   const stepStartGlobal = run.workflow.steps.slice(0, stepIdx).reduce((s, st) => s + st.actions.length, 0);
@@ -757,7 +1024,6 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                   );
                 })}
 
-                {/* Final complete card */}
                 {run.phase === "complete" && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -765,16 +1031,11 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                     className="shrink-0 rounded-lg border border-emerald-500/40 bg-emerald-600/10 px-3 py-2 min-w-[120px] flex flex-col items-center justify-center gap-1"
                   >
                     <CheckCircle2 className="h-5 w-5 text-emerald-400" />
-                    <span className="text-[9px] font-semibold text-emerald-300 text-center">
-                      Task Complete
-                    </span>
-                    <span className="text-[8px] text-emerald-400/60">
-                      {run.totalSteps} actions
-                    </span>
+                    <span className="text-[9px] font-semibold text-emerald-300 text-center">Task Complete</span>
+                    <span className="text-[8px] text-emerald-400/60">{run.totalSteps} actions</span>
                   </motion.div>
                 )}
 
-                {/* Slack GSOC alert card */}
                 {run.phase === "complete" && (
                   <motion.div
                     initial={{ opacity: 0, scale: 0.9 }}
@@ -805,6 +1066,18 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                       </div>
                     </div>
                   </motion.div>
+                )}
+
+                {/* A2A chain cards — appended after Slack card */}
+                {run.phase === "complete" && a2aPhase !== "idle" && (
+                  <A2AFeedCards
+                    a2aPhase={a2aPhase}
+                    gsocVerdict={gsocVerdict}
+                    onGate1={handleA2AGate1}
+                    onGate2={handleA2AGate2}
+                    onGate3Confirm={handleA2AGate3Confirm}
+                    onGate3Dismiss={handleA2AGate3Dismiss}
+                  />
                 )}
               </div>
             )}
