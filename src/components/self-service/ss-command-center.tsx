@@ -55,8 +55,8 @@ const MODES = [
     dot: "bg-emerald-400",
     badgeClass: "bg-emerald-500/20 text-emerald-300 border-emerald-500/30",
     accentText: "text-emerald-300",
-    description: "Fully autonomous agent that navigates Overhaul, investigates alerts, and takes action.",
-    capabilities: ["Investigate compound risks", "Call drivers autonomously", "Escalate to police if critical"],
+    description: "Fully autonomous agent that navigates Overhaul, investigates alerts, and takes action — with a human approval gate on every outward move.",
+    capabilities: ["Investigates compound risks end-to-end", "Calls drivers — after operator approval", "A2A chain to GSOC for final determination"],
     gradient: "from-emerald-500/10",
   },
 ] as const;

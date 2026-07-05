@@ -21,7 +21,7 @@ export default function ExecutivePage() {
   return (
     <PageWrapper
       title="Executive Dashboard"
-      subtitle="Portfolio-level KPIs, risk trends, and AI-generated executive briefings."
+      subtitle="Portfolio-level KPIs, risk trends, and AI-generated briefings — every metric below is produced or protected by the agent workforce."
     >
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
         <StatCard title="Cargo Protected" value={`$${(stats.cargoProtected / 1e9).toFixed(1)}B`} icon={DollarSign} trend="+12% YoY" />

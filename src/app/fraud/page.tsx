@@ -1,12 +1,13 @@
 "use client";
 
+import Link from "next/link";
 import { PageWrapper } from "@/components/layout/page-wrapper";
 import { FraudCaseCard, FRAUD_LABELS } from "@/components/fraud/fraud-case-card";
 import { InvestigationWorkflow } from "@/components/investigation/investigation-workflow";
 import { demoData, generateIncidentReport } from "@/lib/data";
 import type { FraudType } from "@/lib/types";
 import { StatCard } from "@/components/shared/stat-card";
-import { ShieldAlert, FileWarning, FileX, Receipt, Umbrella } from "lucide-react";
+import { ShieldAlert, FileWarning, FileX, Receipt, Umbrella, Bot, ArrowRight } from "lucide-react";
 
 const FRAUD_TYPE_ICONS: Record<FraudType, typeof ShieldAlert> = {
   double_brokering: ShieldAlert,
@@ -25,8 +26,23 @@ export default function FraudPage() {
   return (
     <PageWrapper
       title="AI Fraud Detection"
-      subtitle="Detect double brokering, carrier identity fraud, fake POD documents, invoice fraud, and insurance fraud."
+      subtitle="Detect double brokering, carrier identity fraud, fake POD documents, invoice fraud, and insurance fraud — investigated end-to-end by automated case workflows."
     >
+      {/* Cross-link to agentic carrier onboarding */}
+      <Link
+        href="/fraud-watch"
+        className="mb-8 flex items-center gap-3 rounded-xl border border-[#00c2b2]/25 bg-[#00c2b2]/5 px-4 py-3 hover:bg-[#00c2b2]/10 transition-colors group"
+      >
+        <div className="h-8 w-8 rounded-lg bg-[#00c2b2]/15 border border-[#00c2b2]/30 flex items-center justify-center shrink-0">
+          <Bot className="h-4 w-4 text-[#00c2b2]" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-white">Stop fraud before it starts — onboard carriers with Tony</p>
+          <p className="text-xs text-zinc-400">Drag a carrier into FraudWatch and the AI specialist deploys tailored fraud rules in minutes.</p>
+        </div>
+        <ArrowRight className="h-4 w-4 text-[#00c2b2] group-hover:translate-x-0.5 transition-transform shrink-0" />
+      </Link>
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard title="Active Cases" value={String(demoData.fraudCases.length)} icon={ShieldAlert} delay={0} />
         <StatCard title="Confirmed" value={String(confirmed)} icon={FileWarning} variant="danger" delay={0.1} />

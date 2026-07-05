@@ -24,7 +24,7 @@ export default function DigitalTwinPage() {
   return (
     <PageWrapper
       title="Digital Twin Command Center"
-      subtitle="3D-style logistics network visualization with real-time cargo movement and animated routes."
+      subtitle="Living map of your logistics network — real-time cargo movement, per-lane risk simulation, and the same shipment data your AI agents act on."
     >
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
         {NODE_STATS.map((node, i) => {

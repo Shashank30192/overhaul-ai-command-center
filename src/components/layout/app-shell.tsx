@@ -6,9 +6,9 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Bot, ShieldAlert, Map, Plug, Building2,
-  GitBranch, Activity, BarChart3, Leaf, Crown, Settings,
+  GitBranch, Activity, BarChart3, Crown, Settings,
   Search, Bell, X, Zap, ChevronRight, Cpu, Globe, AlertCircle,
-  CheckCircle, Wifi, Package
+  CheckCircle, Wifi, Package, FileWarning, TerminalSquare
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,22 +22,23 @@ const NAV = [
       { href: "/copilot", label: "AI Copilot", icon: Bot, dot: true },
       { href: "/risk", label: "Risk Monitor", icon: ShieldAlert, badge: 3 },
       { href: "/fraud-watch", label: "Fraud Watch", icon: AlertCircle, badge: 2 },
+      { href: "/fraud", label: "Fraud Detection", icon: FileWarning },
     ],
   },
   {
-    group: "Operations",
+    group: "Agentic Operations",
     items: [
-      { href: "/control-tower", label: "Control Tower", icon: Activity },
+      { href: "/self-service", label: "ACE", icon: Cpu, dot: true },
+      { href: "/agent", label: "Agent Center", icon: TerminalSquare },
       { href: "/orchestrator", label: "Orchestrator", icon: GitBranch },
+      { href: "/control-tower", label: "Control Tower", icon: Activity },
       { href: "/studio", label: "Ecosystem Studio", icon: Plug },
-      { href: "/self-service", label: "ACE", icon: Cpu },
     ],
   },
   {
     group: "Analytics",
     items: [
       { href: "/digital-twin", label: "Digital Twin", icon: Globe },
-      { href: "/sustainability", label: "Sustainability", icon: Leaf },
       { href: "/executive", label: "Executive", icon: Crown },
     ],
   },

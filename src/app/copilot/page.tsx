@@ -36,7 +36,7 @@ export default function CopilotPage() {
   return (
     <PageWrapper
       title="AI Supply Chain Copilot"
-      subtitle="Ask questions about shipments, risks, fraud, and routes in natural language."
+      subtitle="Ask about shipments, risks, fraud, and routes in natural language — and hand complex cases to the Resolution Agent in ACE for autonomous investigation."
     >
       <CopilotChat onSend={handleSend} />
     </PageWrapper>
