@@ -295,6 +295,37 @@ function A2AFeedCards({
   );
 }
 
+// ─── Hotspot matching ─────────────────────────────────────────────────────────
+
+// Find the hotspot whose label best matches the action's targetLabel.
+// Falls back to cycling by index if no keyword overlap is found.
+function findBestHotspot(screenId: ScreenId, targetLabel: string, fallbackIdx: number): Hotspot | null {
+  const hotspots = SCREEN_HOTSPOTS[screenId] ?? [];
+  if (hotspots.length === 0) return null;
+
+  const targetWords = targetLabel.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
+
+  let bestScore = 0;
+  let bestHotspot: Hotspot | null = null;
+
+  for (const h of hotspots) {
+    const hWords = h.label.toLowerCase().split(/\W+/);
+    let score = 0;
+    for (const tw of targetWords) {
+      for (const hw of hWords) {
+        if (hw === tw || hw.startsWith(tw) || tw.startsWith(hw)) score += 2;
+        else if (hw.includes(tw) || tw.includes(hw)) score += 1;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestHotspot = h;
+    }
+  }
+
+  return bestScore > 0 ? bestHotspot! : (hotspots[fallbackIdx % hotspots.length] ?? null);
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 // Actions whose target labels suggest high-impact — require human approval
@@ -505,8 +536,8 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
           addMessage({ role: "system", content: `✓ Approved: ${action.targetLabel}` });
         }
 
-        const screenHotspots = SCREEN_HOTSPOTS[workflowStep.screen] ?? [];
-        const hotspot = screenHotspots[workflowStep.actions.indexOf(action) % screenHotspots.length] ?? null;
+        const actionIdx = workflowStep.actions.indexOf(action);
+        const hotspot = findBestHotspot(workflowStep.screen, action.targetLabel, actionIdx);
 
         setRun((prev) => prev ? {
           ...prev,

@@ -94,12 +94,16 @@ const FRAUD_RULES: FraudRule[] = [
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export function FraudWatchAIOnboarding({ onClose }: { onClose: () => void }) {
+export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose: () => void; prefilledCarrier?: string }) {
   const [stage,           setStage]           = useState(1);
   const [stageQ,          setStageQ]          = useState(0);
   const [ctx,             setCtx]             = useState<Record<string, string>>({});
   const [completedQAs,    setCompletedQAs]    = useState<{ label: string; answer: string }[]>([]);
-  const [tonyLine,        setTonyLine]        = useState("Hey there. I'm Tony, your FraudWatch Implementation Specialist. I've onboarded over 300 freight carriers on this platform. Let's get you set up.");
+  const [tonyLine,        setTonyLine]        = useState(
+    prefilledCarrier
+      ? `Hey there! I can see you've dragged in **${prefilledCarrier}** — I'll get them onboarded right away. Who am I speaking with?`
+      : "Hey there. I'm Tony, your FraudWatch Implementation Specialist. I've onboarded over 300 freight carriers on this platform. Let's get you set up."
+  );
   const [pipeline,        setPipeline]        = useState<PipelineItem[]>([]);
   const [gate,            setGate]            = useState<{ id: string; question: string; approved: boolean } | null>(null);
   const [showMap,         setShowMap]         = useState(false);
@@ -111,7 +115,7 @@ export function FraudWatchAIOnboarding({ onClose }: { onClose: () => void }) {
   const [agentLog,        setAgentLog]        = useState<AgentLogEntry[]>([]);
   const [readiness,       setReadiness]       = useState(0);
   const [processing,      setProcessing]      = useState(false);
-  const [inputValue,      setInputValue]      = useState("");
+  const [inputValue,      setInputValue]      = useState(prefilledCarrier ?? "");
   const ctxRef        = useRef(ctx);
   const activeRef     = useRef<HTMLDivElement>(null);
   const timers        = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -135,6 +139,14 @@ export function FraudWatchAIOnboarding({ onClose }: { onClose: () => void }) {
     setDoneStages(prev => prev.some(d => d.n === n) ? prev : [...prev, { n, summary }]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  // Auto-submit the carrier name when dragged in
+  useEffect(() => {
+    if (prefilledCarrier && stageQ === 0) {
+      later(() => handleAnswer(prefilledCarrier), 900);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Stage 1 answer handler ─────────────────────────────────────────────────
 
@@ -497,6 +509,7 @@ export function FraudWatchAIOnboarding({ onClose }: { onClose: () => void }) {
                           inputValue={inputValue}
                           setInputValue={setInputValue}
                           onAnswer={handleAnswer}
+                          prefilledCarrier={prefilledCarrier}
                         />
                       )}
 
@@ -538,13 +551,14 @@ export function FraudWatchAIOnboarding({ onClose }: { onClose: () => void }) {
 
 // ── Stage 1 Form ──────────────────────────────────────────────────────────────
 
-function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAnswer }: {
+function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAnswer, prefilledCarrier }: {
   stageQ: number;
   completedQAs: { label: string; answer: string }[];
   ctx: Record<string, string>;
   inputValue: string;
   setInputValue: (v: string) => void;
   onAnswer: (a: string) => void;
+  prefilledCarrier?: string;
 }) {
   const company = ctx.company || "your company";
   const qm = Q_META[stageQ];
@@ -552,6 +566,17 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
 
   return (
     <div className="space-y-2">
+      {/* Dropped carrier badge */}
+      {prefilledCarrier && stageQ === 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#00c2b2]/30 bg-[#00c2b2]/8">
+          <div className="h-5 w-5 rounded-md bg-[#00c2b2]/20 flex items-center justify-center shrink-0">
+            <Truck className="h-3 w-3 text-[#00c2b2]" />
+          </div>
+          <span className="text-[11px] text-[#00c2b2] font-medium flex-1 truncate">Carrier dragged in: <strong>{prefilledCarrier}</strong></span>
+          <span className="text-[9px] text-[#00c2b2]/60 border border-[#00c2b2]/20 rounded px-1.5 py-0.5">Pre-filled</span>
+        </div>
+      )}
+
       {/* Completed answers table */}
       {completedQAs.length > 0 && (
         <div className="rounded-lg border border-[var(--mil-border)] bg-[var(--mil-surface)] divide-y divide-[var(--mil-border)] overflow-hidden">
@@ -579,7 +604,7 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
                   value={inputValue}
                   onChange={e => setInputValue(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && inputValue.trim()) { onAnswer(inputValue.trim()); setInputValue(""); } }}
-                  placeholder="Type company name and your name…"
+                  placeholder={prefilledCarrier && stageQ === 0 ? `${prefilledCarrier}, your name…` : "Type company name and your name…"}
                   className="flex-1 px-3 py-1.5 rounded-md text-[11px] bg-[var(--mil-elevated)] border border-[var(--mil-border)] text-white placeholder:text-white/25 focus:outline-none focus:border-[#00c2b2]/50"
                 />
                 <button

@@ -122,39 +122,89 @@ export function AgentViewport({
           </div>
         )}
 
-        {/* Cursor */}
-        {!isIdle && (
+        {/* Targeting dot — shows where cursor is headed */}
+        {!isIdle && activeHotspot && (
           <motion.div
-            className="absolute pointer-events-none z-30"
-            animate={{ left: `${cursorPos.x}%`, top: `${cursorPos.y}%` }}
-            transition={{ type: "spring", stiffness: 180, damping: 22 }}
-            style={{ transform: "translate(-2px, -2px)" }}
+            className="absolute pointer-events-none z-20"
+            style={{
+              left: `${activeHotspot.x}%`,
+              top: `${activeHotspot.y}%`,
+              transform: "translate(-50%, -50%)",
+            }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
           >
-            <MousePointer2
-              className={cn(
-                "h-5 w-5 drop-shadow-[0_0_6px_rgba(59,130,246,0.8)]",
-                isClicking ? "text-blue-300 scale-90" : "text-white"
-              )}
-              style={{ filter: "drop-shadow(0 0 4px #60a5fa)" }}
+            {/* Crosshair rings */}
+            <motion.div
+              className="absolute rounded-full border border-blue-400/60"
+              style={{ width: 32, height: 32, top: -16, left: -16 }}
+              animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0.2, 0.6] }}
+              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <motion.div
+              className="h-1.5 w-1.5 rounded-full bg-blue-400"
+              style={{ position: "absolute", top: -3, left: -3 }}
+              animate={{ opacity: [1, 0.4, 1] }}
+              transition={{ duration: 0.8, repeat: Infinity }}
             />
           </motion.div>
         )}
 
-        {/* Click pulse on target element — small precise dot, no floating box */}
-        {!isIdle && isClicking && activeHotspot && (
+        {/* Cursor */}
+        {!isIdle && (
           <motion.div
-            className="absolute pointer-events-none z-20 rounded-full border-2 border-blue-300"
-            style={{
-              left: `${activeHotspot.x}%`,
-              top: `${activeHotspot.y}%`,
-              width: 28,
-              height: 28,
-              transform: "translate(-50%, -50%)",
-            }}
-            initial={{ scale: 0.5, opacity: 1 }}
-            animate={{ scale: 2, opacity: 0 }}
-            transition={{ duration: 0.45 }}
-          />
+            className="absolute pointer-events-none z-30"
+            initial={{ left: `${cursorPos.x}%`, top: `${cursorPos.y}%` }}
+            animate={{ left: `${cursorPos.x}%`, top: `${cursorPos.y}%` }}
+            transition={{ type: "spring", stiffness: 140, damping: 18, mass: 0.8 }}
+            style={{ transform: "translate(-2px, -2px)" }}
+          >
+            <motion.div
+              animate={isClicking ? { scale: 0.75 } : { scale: 1 }}
+              transition={{ duration: 0.1 }}
+            >
+              <MousePointer2
+                className={cn(
+                  "h-5 w-5",
+                  isClicking ? "text-blue-300" : "text-white"
+                )}
+                style={{ filter: "drop-shadow(0 0 5px #60a5fa) drop-shadow(0 0 2px #fff)" }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Click pulse rings */}
+        {!isIdle && isClicking && activeHotspot && (
+          <>
+            <motion.div
+              className="absolute pointer-events-none z-20 rounded-full border-2 border-blue-400"
+              style={{
+                left: `${activeHotspot.x}%`,
+                top: `${activeHotspot.y}%`,
+                width: 20,
+                height: 20,
+                transform: "translate(-50%, -50%)",
+              }}
+              initial={{ scale: 0.4, opacity: 1 }}
+              animate={{ scale: 2.8, opacity: 0 }}
+              transition={{ duration: 0.5, ease: "easeOut" }}
+            />
+            <motion.div
+              className="absolute pointer-events-none z-20 rounded-full border border-white/60"
+              style={{
+                left: `${activeHotspot.x}%`,
+                top: `${activeHotspot.y}%`,
+                width: 14,
+                height: 14,
+                transform: "translate(-50%, -50%)",
+              }}
+              initial={{ scale: 0.3, opacity: 0.9 }}
+              animate={{ scale: 3.5, opacity: 0 }}
+              transition={{ duration: 0.6, ease: "easeOut", delay: 0.05 }}
+            />
+          </>
         )}
 
         {/* Click ripples */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, SlidersHorizontal, ShieldAlert, Shield, ShieldCheck,
@@ -444,6 +444,10 @@ export function CarrierRiskDashboard() {
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Carrier>(CARRIERS[0]);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [droppedCarrier, setDroppedCarrier] = useState<string | undefined>();
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const dragCarrierRef = useRef<Carrier | null>(null);
 
   const filtered = CARRIERS.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
@@ -519,20 +523,37 @@ export function CarrierRiskDashboard() {
         <div className="flex-1 overflow-y-auto py-2">
           {filtered.map((carrier) => {
             const isActive = selected.id === carrier.id;
+            const isDragging = draggingId === carrier.id;
             const statusCfg = STATUS_CONFIG[carrier.status];
             return (
-              <button key={carrier.id} onClick={() => setSelected(carrier)}
+              <div
+                key={carrier.id}
+                draggable
+                onDragStart={(e) => {
+                  dragCarrierRef.current = carrier;
+                  setDraggingId(carrier.id);
+                  e.dataTransfer.effectAllowed = "copy";
+                  e.dataTransfer.setData("text/plain", carrier.name);
+                }}
+                onDragEnd={() => setDraggingId(null)}
                 className={cn(
-                  "w-full text-left px-4 py-3 border-b border-[var(--mil-border)] transition-colors",
-                  isActive ? "bg-[var(--mil-elevated)]" : "hover:bg-[var(--mil-surface)]"
-                )}>
+                  "w-full text-left px-4 py-3 border-b border-[var(--mil-border)] transition-all cursor-grab active:cursor-grabbing select-none",
+                  isActive ? "bg-[var(--mil-elevated)]" : "hover:bg-[var(--mil-surface)]",
+                  isDragging && "opacity-40"
+                )}
+                onClick={() => setSelected(carrier)}
+              >
                 <div className="flex items-center justify-between mb-1">
                   <span className={cn("text-sm font-medium", isActive ? "text-white" : "text-[var(--mil-text)]")}>
                     {carrier.name}
                   </span>
-                  <span className="h-6 w-6 rounded-full bg-red-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
-                    {carrier.score}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {/* Drag handle hint */}
+                    <span className="text-[9px] text-[var(--mil-muted)] opacity-0 group-hover:opacity-100 transition-opacity select-none">⠿</span>
+                    <span className="h-6 w-6 rounded-full bg-red-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
+                      {carrier.score}
+                    </span>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={cn("text-[10px]", statusCfg.color)}>
@@ -542,14 +563,34 @@ export function CarrierRiskDashboard() {
                     <span className="text-[10px] text-[var(--mil-muted)]">+{carrier.tags.length - 1} more</span>
                   )}
                 </div>
-              </button>
+              </div>
             );
           })}
+        </div>
+
+        {/* Drag hint at bottom */}
+        <div className="shrink-0 px-4 py-2.5 border-t border-[var(--mil-border)] flex items-center gap-2">
+          <span className="text-[9px] text-[var(--mil-muted)]">Drag a carrier → right panel to onboard</span>
         </div>
       </aside>
 
       {/* ── Right: Detail Panel ── */}
-      <main className="flex-1 min-w-0 bg-[var(--mil-bg)] relative overflow-hidden">
+      <main
+        className="flex-1 min-w-0 bg-[var(--mil-bg)] relative overflow-hidden"
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragOver(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragOver(false);
+          setDraggingId(null);
+          const carrier = dragCarrierRef.current;
+          if (carrier) {
+            setDroppedCarrier(carrier.name);
+            setShowOnboarding(true);
+            dragCarrierRef.current = null;
+          }
+        }}
+      >
         <AnimatePresence mode="wait">
           <motion.div key={selected.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
@@ -557,10 +598,35 @@ export function CarrierRiskDashboard() {
           </motion.div>
         </AnimatePresence>
 
+        {/* Drop target overlay — visible while dragging */}
+        <AnimatePresence>
+          {isDragOver && !showOnboarding && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="absolute inset-0 z-10 pointer-events-none flex items-center justify-center"
+              style={{ background: "rgba(0,194,178,0.06)", border: "2px dashed rgba(0,194,178,0.4)" }}
+            >
+              <div className="flex flex-col items-center gap-3">
+                <div className="h-14 w-14 rounded-2xl bg-[#00c2b2]/15 border border-[#00c2b2]/40 flex items-center justify-center">
+                  <Bot className="h-7 w-7 text-[#00c2b2]" />
+                </div>
+                <p className="text-sm font-semibold text-[#00c2b2]">Drop to start AI onboarding</p>
+                <p className="text-xs text-[#00c2b2]/60">Tony will onboard this carrier automatically</p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* AI Onboarding Panel — overlays the carrier detail */}
         <AnimatePresence>
           {showOnboarding && (
-            <FraudWatchAIOnboarding onClose={() => setShowOnboarding(false)} />
+            <FraudWatchAIOnboarding
+              onClose={() => { setShowOnboarding(false); setDroppedCarrier(undefined); }}
+              prefilledCarrier={droppedCarrier}
+            />
           )}
         </AnimatePresence>
       </main>
