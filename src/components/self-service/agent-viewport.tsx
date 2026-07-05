@@ -59,6 +59,13 @@ export function AgentViewport({
   const hotspots = activeHotspot ? [activeHotspot] : (SCREEN_HOTSPOTS[currentScreen] ?? []);
   const cursorPos = activeHotspot ?? hotspots[0] ?? { x: 50, y: 50 };
 
+  // Derive the action kind from the label verb so typing/reading get
+  // distinct visual treatments at the hotspot
+  const actionKind = actionLabel.startsWith("Typing") ? "type"
+    : actionLabel.startsWith("Reading") ? "read"
+    : actionLabel.startsWith("Navigating") ? "navigate"
+    : "click";
+
   return (
     <div className="flex flex-col h-full">
       {/* Viewport header */}
@@ -135,19 +142,55 @@ export function AgentViewport({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            {/* Crosshair rings */}
-            <motion.div
-              className="absolute rounded-full border border-blue-400/60"
-              style={{ width: 32, height: 32, top: -16, left: -16 }}
-              animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0.2, 0.6] }}
-              transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-            />
-            <motion.div
-              className="h-1.5 w-1.5 rounded-full bg-blue-400"
-              style={{ position: "absolute", top: -3, left: -3 }}
-              animate={{ opacity: [1, 0.4, 1] }}
-              transition={{ duration: 0.8, repeat: Infinity }}
-            />
+            {actionKind === "read" ? (
+              /* Reading — amber scanning box sweeping over the element */
+              <>
+                <motion.div
+                  className="absolute rounded-md border border-amber-400/50 bg-amber-400/5"
+                  style={{ width: 120, height: 40, top: -20, left: -60 }}
+                  animate={{ opacity: [0.4, 0.9, 0.4] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.div
+                  className="absolute w-[120px] h-0.5 bg-amber-400/70"
+                  style={{ top: -20, left: -60 }}
+                  animate={{ y: [0, 38, 0] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                />
+              </>
+            ) : actionKind === "type" ? (
+              /* Typing — teal input focus ring with blinking caret */
+              <>
+                <motion.div
+                  className="absolute rounded-md border-2 border-[#00c2b2]/60 bg-[#00c2b2]/5"
+                  style={{ width: 130, height: 30, top: -15, left: -65 }}
+                  animate={{ opacity: [0.5, 1, 0.5] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                />
+                <motion.div
+                  className="absolute w-0.5 h-4 bg-[#00c2b2]"
+                  style={{ top: -8, left: -55 }}
+                  animate={{ opacity: [1, 0, 1] }}
+                  transition={{ duration: 0.7, repeat: Infinity }}
+                />
+              </>
+            ) : (
+              /* Click / navigate — blue crosshair rings */
+              <>
+                <motion.div
+                  className="absolute rounded-full border border-blue-400/60"
+                  style={{ width: 32, height: 32, top: -16, left: -16 }}
+                  animate={{ scale: [1, 1.4, 1], opacity: [0.6, 0.2, 0.6] }}
+                  transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
+                />
+                <motion.div
+                  className="h-1.5 w-1.5 rounded-full bg-blue-400"
+                  style={{ position: "absolute", top: -3, left: -3 }}
+                  animate={{ opacity: [1, 0.4, 1] }}
+                  transition={{ duration: 0.8, repeat: Infinity }}
+                />
+              </>
+            )}
           </motion.div>
         )}
 

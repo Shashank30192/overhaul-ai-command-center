@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Send, RotateCcw, Bot, CheckCircle2, Loader2, Cpu,
@@ -297,39 +297,61 @@ function A2AFeedCards({
 
 // ─── Hotspot matching ─────────────────────────────────────────────────────────
 
+// Words too generic to disambiguate hotspots on their own
+const HOTSPOT_STOPWORDS = new Set([
+  "the", "and", "with", "for", "from", "into", "your", "this", "that",
+  "all", "full", "open", "view", "panel", "button", "field", "box", "tab",
+]);
+
+function tokenize(label: string): string[] {
+  return label.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 2);
+}
+
 // Find the hotspot whose label best matches the action's targetLabel.
-// Falls back to cycling by index if no keyword overlap is found.
+// Exact tokens (incl. shipment IDs like "84764") score highest; generic
+// stopwords only count as weak signals. Falls back to index cycling.
 function findBestHotspot(screenId: ScreenId, targetLabel: string, fallbackIdx: number): Hotspot | null {
   const hotspots = SCREEN_HOTSPOTS[screenId] ?? [];
   if (hotspots.length === 0) return null;
 
-  const targetWords = targetLabel.toLowerCase().split(/\W+/).filter((w) => w.length > 2);
+  const target = targetLabel.toLowerCase();
+  const targetWords = tokenize(targetLabel);
 
   let bestScore = 0;
   let bestHotspot: Hotspot | null = null;
 
   for (const h of hotspots) {
-    const hWords = h.label.toLowerCase().split(/\W+/);
+    const hLabel = h.label.toLowerCase();
+    const hWords = tokenize(h.label);
     let score = 0;
+
+    // Whole-label containment is the strongest possible signal
+    if (hLabel.includes(target) || target.includes(hLabel)) score += 10;
+
     for (const tw of targetWords) {
+      const weight = HOTSPOT_STOPWORDS.has(tw) ? 0.5 : /^\d+$/.test(tw) ? 5 : 3;
       for (const hw of hWords) {
-        if (hw === tw || hw.startsWith(tw) || tw.startsWith(hw)) score += 2;
-        else if (hw.includes(tw) || tw.includes(hw)) score += 1;
+        if (hw === tw) { score += weight; break; }
+        if (tw.length > 3 && (hw.startsWith(tw) || tw.startsWith(hw))) { score += weight * 0.6; break; }
+        if (tw.length > 4 && (hw.includes(tw) || tw.includes(hw))) { score += weight * 0.3; break; }
       }
     }
+
     if (score > bestScore) {
       bestScore = score;
       bestHotspot = h;
     }
   }
 
-  return bestScore > 0 ? bestHotspot! : (hotspots[fallbackIdx % hotspots.length] ?? null);
+  // Require a meaningful score — a lone stopword match shouldn't steer the cursor
+  return bestScore >= 1.5 ? bestHotspot! : (hotspots[fallbackIdx % hotspots.length] ?? null);
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-// Actions whose target labels suggest high-impact — require human approval
-const HIGH_IMPACT_PATTERN = /alert|contact|notify|send|flag|escalate|dispatch|report/i;
+// Actions whose target labels suggest high-impact — require human approval.
+// "call driver" is deliberately specific so "End call" doesn't re-gate.
+const HIGH_IMPACT_PATTERN = /alert|contact|notify|send|flag|escalate|dispatch|report|call driver/i;
 
 export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -466,6 +488,19 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     scrollBottom();
   }, [addMessage, scrollBottom]);
 
+  // Abort any in-flight run: unblocks a workflow stuck at an approval gate
+  // (its promise resolves false) and stops A2A timers.
+  const cancelInFlight = useCallback(() => {
+    abortRef.current = true;
+    setPendingApproval((prev) => { prev?.resolve(false); return null; });
+    a2aTimersRef.current.forEach(clearTimeout);
+    a2aTimersRef.current = [];
+  }, []);
+
+  // Cleanup on unmount — dangling approval promises and timers would
+  // otherwise keep the aborted workflow loop alive in the background
+  useEffect(() => cancelInFlight, [cancelInFlight]);
+
   const executeWorkflow = useCallback(async (goal: string) => {
     abortRef.current = false;
     setA2aPhase("idle");
@@ -522,31 +557,39 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       for (const action of workflowStep.actions) {
         if (abortRef.current) break;
 
+        const actionIdx = workflowStep.actions.indexOf(action);
+        const hotspot = findBestHotspot(workflowStep.screen, action.targetLabel, actionIdx);
+        const needsApproval = action.type === "click" && HIGH_IMPACT_PATTERN.test(action.targetLabel);
+
+        // Move the cursor to the target first — for gated actions the agent
+        // visibly hovers over the element it wants to click while waiting
+        setRun((prev) => prev ? {
+          ...prev,
+          activeHotspot: hotspot,
+          isClicking: false,
+          currentThought: needsApproval
+            ? `Waiting for operator approval before I ${action.targetLabel.toLowerCase()}…`
+            : action.thought,
+          currentActionLabel: `${action.type === "navigate" ? "Navigating to" : action.type === "click" ? "Clicking" : action.type === "type" ? "Typing in" : action.type === "read" ? "Reading" : "Hovering over"} ${action.targetLabel}`,
+          globalStepIndex: globalStep,
+        } : null);
+
         // Human approval gate for high-impact actions
-        if (action.type === "click" && HIGH_IMPACT_PATTERN.test(action.targetLabel)) {
+        if (needsApproval) {
+          await sleep(500); // let the cursor arrive at the target
           const approved = await requestApproval(
             `Approve: ${action.targetLabel}`,
             `The agent wants to ${action.targetLabel.toLowerCase()} on your behalf. This will send a notification or take an action that affects external parties.`
           );
+          if (abortRef.current) break;
           if (!approved) {
             addMessage({ role: "system", content: `↩ Skipped: ${action.targetLabel} (declined by operator)` });
             globalStep++;
             continue;
           }
           addMessage({ role: "system", content: `✓ Approved: ${action.targetLabel}` });
+          setRun((prev) => prev ? { ...prev, currentThought: action.thought } : null);
         }
-
-        const actionIdx = workflowStep.actions.indexOf(action);
-        const hotspot = findBestHotspot(workflowStep.screen, action.targetLabel, actionIdx);
-
-        setRun((prev) => prev ? {
-          ...prev,
-          activeHotspot: hotspot,
-          isClicking: false,
-          currentThought: action.thought,
-          currentActionLabel: `${action.type === "navigate" ? "Navigating to" : action.type === "click" ? "Clicking" : action.type === "type" ? "Typing in" : action.type === "read" ? "Reading" : "Hovering over"} ${action.targetLabel}`,
-          globalStepIndex: globalStep,
-        } : null);
 
         await sleep(Math.min(action.durationMs * 0.4, 600));
 
@@ -590,6 +633,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     let finalMessages: ChatMessage[] = [];
     setMessages(prev => { finalMessages = prev; return prev; });
     const completionMsg = await callAgentLLM("complete", goal, workflow.title, resultData, finalMessages);
+    if (abortRef.current) return;
     updateLastAgent(completionMsg, true);
 
     addMessage({
@@ -598,6 +642,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     });
 
     await sleep(600);
+    if (abortRef.current) return;
     addMessage({
       role: "system",
       content: `📩 Slack alert sent → GSOC Officer (R. Chen) · #gsoc-alerts notified`,
@@ -605,6 +650,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
 
     // Trigger A2A chain after main workflow
     await sleep(800);
+    if (abortRef.current) return;
     startA2AChain();
   }, [addMessage, updateLastAgent, callAgentLLM, callAgentDecision, requestApproval, startA2AChain]);
 
@@ -614,19 +660,17 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     setInput("");
     setResult(null);
     setAgentDecision(null);
-    abortRef.current = true;
+    cancelInFlight();
 
     addMessage({ role: "user", content: trimmed });
     setTimeout(() => void executeWorkflow(trimmed), 400);
-  }, [input, run, addMessage, executeWorkflow]);
+  }, [input, run, addMessage, executeWorkflow, cancelInFlight]);
 
   const handleReset = useCallback(() => {
-    abortRef.current = true;
-    a2aTimersRef.current.forEach(clearTimeout);
+    cancelInFlight();
     setRun(null);
     setResult(null);
     setAgentDecision(null);
-    setPendingApproval(null);
     setA2aPhase("idle");
     setGsocVerdict(null);
     setInput("");
@@ -635,7 +679,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       role: "agent",
       content: "Hi! I'm your **Overhaul Self-Service Agent**. I can autonomously navigate the platform to track your shipments, file claims, generate risk reports, verify carriers, and more.\n\nWhat can I help you with today?",
     }]);
-  }, []);
+  }, [cancelInFlight]);
 
   const isRunning = run?.phase === "running";
   const isIdle = !run;

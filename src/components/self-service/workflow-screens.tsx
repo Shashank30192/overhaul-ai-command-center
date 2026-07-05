@@ -1098,15 +1098,19 @@ export const SCREEN_LABELS: Record<ScreenId, string> = {
 
 export type Hotspot = { x: number; y: number; label: string };
 
+// Labels double as match aliases for the agent's cursor targeting —
+// include the shipment IDs, risk-factor phrases, and action verbs the
+// workflow targetLabels use, so findBestHotspot resolves every action.
 export const SCREEN_HOTSPOTS: Partial<Record<ScreenId, Hotspot[]>> = {
   "home": [
     { x: 44, y: 8, label: "Risk Monitor nav link" },
     { x: 53, y: 8, label: "Fraud Watch nav link" },
+    { x: 60, y: 8, label: "Digital Twin nav link" },
   ],
   "risk-monitor": [
     // Sidebar elements (x < 28%)
-    { x: 14, y: 18, label: "Search alerts box" },
-    { x: 14, y: 38, label: "Light & Stop (Compound) risk pill" },  // active risk pills ~y:35-45%
+    { x: 14, y: 18, label: "Search alerts box — OH ID search" },
+    { x: 14, y: 38, label: "Light & Stop (Compound) risk pill — shipment OH-84764 weekend transit vulnerability alert" },
     { x: 14, y: 43, label: "Light alert risk pill" },
     { x: 14, y: 62, label: "11:29 timeline event" },               // timeline ~y:58-80%
     { x: 14, y: 68, label: "11:17 timeline event" },
@@ -1114,18 +1118,22 @@ export const SCREEN_HOTSPOTS: Partial<Record<ScreenId, Hotspot[]>> = {
     { x: 65, y: 55, label: "Truck — current position" },           // truck at ~38%,55% of SVG = map area
     { x: 35, y: 77, label: "RiskGPT Notes tab" },                  // floating panel bottom-left
     { x: 43, y: 77, label: "Chat with RiskGPT tab" },
+    { x: 32, y: 87, label: "Analyze Light & Stop compound case OH-84764 — RiskGPT chat input" },
+    { x: 32, y: 90, label: "RiskGPT analysis — 98% risk score, 97% theft probability" },
     { x: 85, y: 16, label: "GSOC Response button" },
   ],
   "shipment-detail": [
-    { x: 15, y: 38, label: "Risk factors panel" },
-    { x: 15, y: 55, label: "ETA panel" },
+    { x: 15, y: 38, label: "Shipment status & active alerts — risk factors panel" },
+    { x: 15, y: 55, label: "ETA panel — estimated arrival" },
     { x: 15, y: 82, label: "Open Incident button" },
-    { x: 60, y: 45, label: "Live map — GPS position" },
+    { x: 60, y: 45, label: "Live map position — GPS" },
+    { x: 60, y: 70, label: "Route timeline — waypoints" },
+    { x: 85, y: 14, label: "Export Report button" },
   ],
   "riskgpt-chat": [
     { x: 30, y: 18, label: "Chat with RiskGPT tab" },
-    { x: 60, y: 78, label: "Chat input field" },
-    { x: 60, y: 55, label: "AI risk analysis response" },
+    { x: 60, y: 78, label: "Chat input field — generate comprehensive risk report" },
+    { x: 60, y: 55, label: "RiskGPT AI risk analysis response" },
   ],
   "incident-form": [
     { x: 50, y: 42, label: "Incident description field" },
@@ -1133,13 +1141,14 @@ export const SCREEN_HOTSPOTS: Partial<Record<ScreenId, Hotspot[]>> = {
     { x: 18, y: 74, label: "Submit Incident Report" },
   ],
   "carrier-profile": [
+    { x: 50, y: 12, label: "Open full carrier profile — header" },
     { x: 10, y: 38, label: "Safety & performance ratings" },
     { x: 55, y: 35, label: "FMCSA credential checks" },
     { x: 55, y: 50, label: "Insurance check result" },
     { x: 55, y: 74, label: "Certifications — TAPA, ISO, C-TPAT" },
   ],
   "fraud-dashboard": [
-    { x: 11, y: 16, label: "Carrier search box" },
+    { x: 11, y: 16, label: "Carrier search box — type carrier name" },
     { x: 11, y: 32, label: "Beacon Logistics — MC-294817" },
     { x: 60, y: 24, label: "USDOT lookup result" },
     { x: 60, y: 34, label: "Name cross-reference result" },
@@ -1148,13 +1157,16 @@ export const SCREEN_HOTSPOTS: Partial<Record<ScreenId, Hotspot[]>> = {
     { x: 60, y: 64, label: "Composite risk score" },
   ],
   "digital-twin": [
-    { x: 22, y: 48, label: "OH-84764 — high risk marker" },
-    { x: 45, y: 35, label: "OH-22813 — medium risk" },
-    { x: 62, y: 55, label: "OH-91034 — low risk" },
+    { x: 50, y: 8, label: "Digital Twin nav" },
+    { x: 22, y: 48, label: "Shipment OH-84764 — high risk marker" },
+    { x: 45, y: 35, label: "Shipment OH-22813 — medium risk marker" },
+    { x: 62, y: 55, label: "Shipment OH-91034 — low risk marker" },
   ],
   "case-detail": [
+    // Header
+    { x: 50, y: 13, label: "Case header — open full case Light & Stop compound" },
     // Sidebar (x < 26%)
-    { x: 13, y: 34, label: "Event timeline — stopped 47 min" },
+    { x: 13, y: 34, label: "Case event timeline — stopped 47 min São Paulo" },
     { x: 13, y: 42, label: "No check-in ping" },
     { x: 13, y: 60, label: "Call Driver button" },
     { x: 13, y: 68, label: "Contact Carrier Dispatch" },
