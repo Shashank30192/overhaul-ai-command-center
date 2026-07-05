@@ -6,7 +6,8 @@ import {
   Send, RotateCcw, Bot, CheckCircle2, Loader2, Cpu,
   ArrowRight, Zap, ChevronRight, AlertTriangle, Clock,
   Thermometer, ShieldCheck, FileText, Search, Hash, MessageSquare,
-  Network, Brain, ShieldAlert,
+  Network, Brain, ShieldAlert, Square, PhoneCall, MapPin,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -50,6 +51,7 @@ interface RunState {
   globalStepIndex: number;
   totalSteps: number;
   completedSteps: string[];
+  screenTrail: ScreenId[];
   result?: WorkflowResult;
 }
 
@@ -347,6 +349,50 @@ function findBestHotspot(screenId: ScreenId, targetLabel: string, fallbackIdx: n
   return bestScore >= 1.5 ? bestHotspot! : (hotspots[fallbackIdx % hotspots.length] ?? null);
 }
 
+// ─── Top-nav positions ─────────────────────────────────────────────────────────
+
+// Every screen renders the same TopNav, so navigate actions always click at
+// these positions on the CURRENT screen before the new screen loads.
+const NAV_POSITIONS: Record<string, Hotspot> = {
+  "risk monitor": { x: 44, y: 8, label: "Risk Monitor nav link" },
+  "fraud watch":  { x: 53, y: 8, label: "Fraud Watch nav link" },
+  "digital twin": { x: 60, y: 8, label: "Digital Twin nav link" },
+};
+
+function navHotspotFor(targetLabel: string): Hotspot {
+  const key = Object.keys(NAV_POSITIONS).find((k) => targetLabel.toLowerCase().includes(k));
+  return key ? NAV_POSITIONS[key] : { x: 50, y: 8, label: `${targetLabel} nav link` };
+}
+
+// ─── Evidence artifacts ────────────────────────────────────────────────────────
+
+// Artifacts the agent produces per workflow — shown in the action feed on completion
+const WORKFLOW_ARTIFACTS: Record<string, { icon: LucideIcon; label: string; meta: string }[]> = {
+  "investigate-case": [
+    { icon: PhoneCall, label: "Driver call recording", meta: "4m 32s · Marcus Vinicius" },
+    { icon: MapPin,    label: "GPS trace — São Paulo stop", meta: "47 min · geofenced" },
+    { icon: FileText,  label: "Case report OH-84764", meta: "PDF · auto-generated" },
+  ],
+  "track-shipment": [
+    { icon: MapPin,   label: "Live GPS snapshot", meta: "lat/long + heading" },
+    { icon: FileText, label: "Status summary", meta: "shareable link" },
+  ],
+  "file-incident": [
+    { icon: FileText, label: "Incident report", meta: "filed · GPS attached" },
+    { icon: MapPin,   label: "GPS evidence bundle", meta: "route + stop history" },
+  ],
+  "risk-report": [
+    { icon: FileText,    label: "Risk assessment report", meta: "PDF · RiskGPT authored" },
+    { icon: ShieldAlert, label: "Compound risk breakdown", meta: "98% composite score" },
+  ],
+  "carrier-info": [
+    { icon: ShieldCheck, label: "Carrier verification cert", meta: "MC-294817 · FMCSA" },
+  ],
+  "get-eta": [
+    { icon: Clock, label: "ETA projection", meta: "recalculated from live GPS" },
+  ],
+};
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 // Actions whose target labels suggest high-impact — require human approval.
@@ -371,6 +417,8 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   const abortRef = useRef(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const a2aTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const startTimeRef = useRef(0);
+  const [elapsed, setElapsed] = useState(0);
 
   const scrollBottom = useCallback((smooth = true) => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" }), 60);
@@ -501,6 +549,27 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   // otherwise keep the aborted workflow loop alive in the background
   useEffect(() => cancelInFlight, [cancelInFlight]);
 
+  // Elapsed-time ticker while the agent runs
+  const running = run?.phase === "running";
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - startTimeRef.current) / 1000)), 1000);
+    return () => clearInterval(t);
+  }, [running]);
+
+  // Operator stop — aborts mid-run, keeps the transcript
+  const handleStop = useCallback(() => {
+    cancelInFlight();
+    setRun((prev) => prev ? {
+      ...prev,
+      phase: "complete",
+      activeHotspot: null,
+      currentThought: "Stopped by operator.",
+      currentActionLabel: "Stopped",
+    } : null);
+    addMessage({ role: "system", content: "⏹ Agent stopped by operator — partial progress preserved" });
+  }, [cancelInFlight, addMessage]);
+
   const executeWorkflow = useCallback(async (goal: string) => {
     abortRef.current = false;
     setA2aPhase("idle");
@@ -510,6 +579,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     const workflow = resolveWorkflow(goal);
     const totalSteps = workflow.steps.reduce((sum, s) => sum + s.actions.length, 0);
 
+    startTimeRef.current = Date.now();
     setRun({
       workflow,
       phase: "running",
@@ -521,6 +591,7 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
       globalStepIndex: 0,
       totalSteps,
       completedSteps: [],
+      screenTrail: [workflow.steps[0]?.screen ?? "home"],
       result: undefined,
     });
 
@@ -544,20 +615,61 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
     for (const workflowStep of workflow.steps) {
       if (abortRef.current) break;
 
-      setRun((prev) => prev ? {
-        ...prev,
-        currentScreenId: workflowStep.screen,
-        currentThought: `Navigating to ${workflowStep.screen.replace(/-/g, " ")}…`,
-        currentActionLabel: `Opening ${workflowStep.screen.replace(/-/g, " ")}`,
-        activeHotspot: null,
-      } : null);
+      const actions = [...workflowStep.actions];
 
-      await sleep(600);
+      // Navigation fix: a leading "navigate" action is performed on the
+      // CURRENT screen — cursor travels to the top-nav link, clicks it, and
+      // only then does the screen transition. No more teleporting.
+      if (actions[0]?.type === "navigate") {
+        const nav = actions.shift()!;
+        const navSpot = navHotspotFor(nav.targetLabel);
 
-      for (const action of workflowStep.actions) {
+        setRun((prev) => prev ? {
+          ...prev,
+          activeHotspot: navSpot,
+          isClicking: false,
+          currentThought: nav.thought,
+          currentActionLabel: `Navigating to ${nav.targetLabel}`,
+          globalStepIndex: globalStep,
+        } : null);
+
+        await sleep(Math.min(nav.durationMs * 0.6, 700));
+        setRun((prev) => prev ? { ...prev, isClicking: true } : null);
+        await sleep(200);
+        setRun((prev) => prev ? { ...prev, isClicking: false } : null);
+        await sleep(150);
+
+        setRun((prev) => prev ? {
+          ...prev,
+          currentScreenId: workflowStep.screen,
+          activeHotspot: null,
+          screenTrail: prev.screenTrail[prev.screenTrail.length - 1] === workflowStep.screen
+            ? prev.screenTrail
+            : [...prev.screenTrail, workflowStep.screen],
+          completedSteps: [...prev.completedSteps, nav.targetLabel],
+          globalStepIndex: globalStep + 1,
+        } : null);
+        globalStep++;
+        await sleep(450);
+      } else {
+        setRun((prev) => prev ? {
+          ...prev,
+          currentScreenId: workflowStep.screen,
+          currentThought: `Opening ${workflowStep.screen.replace(/-/g, " ")}…`,
+          currentActionLabel: `Opening ${workflowStep.screen.replace(/-/g, " ")}`,
+          activeHotspot: null,
+          screenTrail: prev.screenTrail[prev.screenTrail.length - 1] === workflowStep.screen
+            ? prev.screenTrail
+            : [...prev.screenTrail, workflowStep.screen],
+        } : null);
+
+        await sleep(600);
+      }
+
+      for (const action of actions) {
         if (abortRef.current) break;
 
-        const actionIdx = workflowStep.actions.indexOf(action);
+        const actionIdx = actions.indexOf(action);
         const hotspot = findBestHotspot(workflowStep.screen, action.targetLabel, actionIdx);
         const needsApproval = action.type === "click" && HIGH_IMPACT_PATTERN.test(action.targetLabel);
 
@@ -684,6 +796,12 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
   const isRunning = run?.phase === "running";
   const isIdle = !run;
 
+  // How many actions in this workflow will pause at a human approval gate
+  const gatesArmed = run
+    ? run.workflow.steps.flatMap((s) => s.actions)
+        .filter((a) => a.type === "click" && HIGH_IMPACT_PATTERN.test(a.targetLabel)).length
+    : 0;
+
   return (
     <div className={`flex overflow-hidden ${embedded ? "h-full" : "h-[calc(100vh-4rem)]"}`}>
       {/* ── Left: Customer Chat Panel ── */}
@@ -704,7 +822,9 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                   isRunning ? "bg-blue-400 animate-pulse" : "bg-emerald-400"
                 )} />
                 <span className="text-[11px] text-[var(--mil-muted)] truncate">
-                  {isRunning ? "Navigating platform…" : embedded ? `${CUSTOMER.name} · Ready` : "Ready"}
+                  {isRunning
+                    ? `Navigating platform…${gatesArmed > 0 ? ` · ${gatesArmed} approval gate${gatesArmed > 1 ? "s" : ""} armed` : ""}`
+                    : embedded ? `${CUSTOMER.name} · Ready` : "Ready"}
                 </span>
               </div>
             </div>
@@ -929,12 +1049,23 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
             >
               {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
             </button>
-            <button
-              onClick={handleReset}
-              className="px-3 py-2.5 rounded-xl bg-[var(--mil-surface)] border border-[var(--mil-border)] text-[var(--mil-muted)] hover:text-white transition-colors"
-            >
-              <RotateCcw className="h-4 w-4" />
-            </button>
+            {isRunning ? (
+              <button
+                onClick={handleStop}
+                title="Stop agent"
+                className="px-3 py-2.5 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 transition-colors"
+              >
+                <Square className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleReset}
+                title="Reset session"
+                className="px-3 py-2.5 rounded-xl bg-[var(--mil-surface)] border border-[var(--mil-border)] text-[var(--mil-muted)] hover:text-white transition-colors"
+              >
+                <RotateCcw className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <p className="text-[10px] text-[var(--mil-muted)] mt-2 text-center">
             Agent navigates Overhaul autonomously on your behalf
@@ -965,10 +1096,24 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
             <span className="text-[10px] font-semibold uppercase tracking-widest text-[var(--mil-muted)]">
               Action Feed
             </span>
+            {/* Screen trail breadcrumb */}
+            {run && run.screenTrail.length > 1 && (
+              <span className="hidden sm:flex items-center gap-1 text-[9px] text-[var(--mil-muted)] truncate max-w-[300px]">
+                {run.screenTrail.map((s, i) => (
+                  <span key={`${s}-${i}`} className="flex items-center gap-1 shrink-0">
+                    {i > 0 && <ChevronRight className="h-2.5 w-2.5 opacity-40" />}
+                    <span className={i === run.screenTrail.length - 1 ? "text-white/70" : ""}>
+                      {s.replace(/-/g, " ")}
+                    </span>
+                  </span>
+                ))}
+              </span>
+            )}
             {isRunning && (
               <span className="ml-auto flex items-center gap-1.5 text-[10px] text-blue-300">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 {pendingApproval ? "Awaiting approval…" : "Executing"}
+                <span className="text-[var(--mil-muted)] tabular-nums">{elapsed}s</span>
               </span>
             )}
             {run?.phase === "complete" && a2aPhase !== "idle" && (
@@ -1142,6 +1287,26 @@ export function SelfServiceAgent({ embedded = false }: { embedded?: boolean }) {
                     </div>
                   </motion.div>
                 )}
+
+                {/* Evidence artifacts produced during the run */}
+                {run.phase === "complete" && (WORKFLOW_ARTIFACTS[run.workflow.id] ?? []).map((art, i) => (
+                  <motion.div
+                    key={art.label}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.9 + i * 0.15 }}
+                    className="shrink-0 rounded-lg border border-blue-500/25 bg-blue-500/5 px-3 py-2 min-w-[160px] flex flex-col justify-center gap-1"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <art.icon className="h-3.5 w-3.5 text-blue-400 shrink-0" />
+                      <span className="text-[9px] font-semibold text-blue-200 leading-tight">{art.label}</span>
+                    </div>
+                    <span className="text-[8px] text-blue-300/50 pl-5">{art.meta}</span>
+                    <span className="text-[8px] text-[var(--mil-muted)] pl-5 flex items-center gap-1">
+                      <CheckCircle2 className="h-2.5 w-2.5 text-emerald-400" /> Evidence attached
+                    </span>
+                  </motion.div>
+                ))}
 
                 {/* A2A chain cards — appended after Slack card */}
                 {run.phase === "complete" && a2aPhase !== "idle" && (
