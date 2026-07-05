@@ -95,13 +95,18 @@ const FRAUD_RULES: FraudRule[] = [
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose: () => void; prefilledCarrier?: string }) {
+  // When a carrier is dragged in, company is already known — skip Q0, start at Q1
   const [stage,           setStage]           = useState(1);
-  const [stageQ,          setStageQ]          = useState(0);
-  const [ctx,             setCtx]             = useState<Record<string, string>>({});
-  const [completedQAs,    setCompletedQAs]    = useState<{ label: string; answer: string }[]>([]);
+  const [stageQ,          setStageQ]          = useState(prefilledCarrier ? 1 : 0);
+  const [ctx,             setCtx]             = useState<Record<string, string>>(
+    prefilledCarrier ? { company: prefilledCarrier, contact: prefilledCarrier } : {}
+  );
+  const [completedQAs,    setCompletedQAs]    = useState<{ label: string; answer: string }[]>(
+    prefilledCarrier ? [{ label: "Company", answer: prefilledCarrier }] : []
+  );
   const [tonyLine,        setTonyLine]        = useState(
     prefilledCarrier
-      ? `Hey there! I can see you've dragged in **${prefilledCarrier}** — I'll get them onboarded right away. Who am I speaking with?`
+      ? `Got it — onboarding **${prefilledCarrier}** into FraudWatch. What types of cargo do they move?`
       : "Hey there. I'm Tony, your FraudWatch Implementation Specialist. I've onboarded over 300 freight carriers on this platform. Let's get you set up."
   );
   const [pipeline,        setPipeline]        = useState<PipelineItem[]>([]);
@@ -115,7 +120,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const [agentLog,        setAgentLog]        = useState<AgentLogEntry[]>([]);
   const [readiness,       setReadiness]       = useState(0);
   const [processing,      setProcessing]      = useState(false);
-  const [inputValue,      setInputValue]      = useState(prefilledCarrier ?? "");
+  const [inputValue,      setInputValue]      = useState("");
   const ctxRef        = useRef(ctx);
   const activeRef     = useRef<HTMLDivElement>(null);
   const timers        = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -139,14 +144,6 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     setDoneStages(prev => prev.some(d => d.n === n) ? prev : [...prev, { n, summary }]);
 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
-
-  // Auto-submit the carrier name when dragged in
-  useEffect(() => {
-    if (prefilledCarrier && stageQ === 0) {
-      later(() => handleAnswer(prefilledCarrier), 900);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   // ── Stage 1 answer handler ─────────────────────────────────────────────────
 
