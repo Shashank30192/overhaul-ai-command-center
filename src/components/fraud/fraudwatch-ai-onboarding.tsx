@@ -95,18 +95,15 @@ const FRAUD_RULES: FraudRule[] = [
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose: () => void; prefilledCarrier?: string }) {
-  // When a carrier is dragged in, company is already known — skip Q0, start at Q1
   const [stage,           setStage]           = useState(1);
-  const [stageQ,          setStageQ]          = useState(prefilledCarrier ? 1 : 0);
+  const [stageQ,          setStageQ]          = useState(0);
   const [ctx,             setCtx]             = useState<Record<string, string>>(
-    prefilledCarrier ? { company: prefilledCarrier, contact: prefilledCarrier } : {}
+    prefilledCarrier ? { company: prefilledCarrier } : {}
   );
-  const [completedQAs,    setCompletedQAs]    = useState<{ label: string; answer: string }[]>(
-    prefilledCarrier ? [{ label: "Company", answer: prefilledCarrier }] : []
-  );
+  const [completedQAs,    setCompletedQAs]    = useState<{ label: string; answer: string }[]>([]);
   const [tonyLine,        setTonyLine]        = useState(
     prefilledCarrier
-      ? `Got it — onboarding **${prefilledCarrier}** into FraudWatch. What types of cargo do they move?`
+      ? `I'll be setting up **${prefilledCarrier}** in FraudWatch. Who am I speaking with there?`
       : "Hey there. I'm Tony, your FraudWatch Implementation Specialist. I've onboarded over 300 freight carriers on this platform. Let's get you set up."
   );
   const [pipeline,        setPipeline]        = useState<PipelineItem[]>([]);
@@ -152,14 +149,19 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     setProcessing(true);
 
     const qm = Q_META[stageQ];
-    const company = stageQ === 0 ? answer.split(/[,\/]/)[0].trim() : (ctxRef.current.company || "your company");
+    // When carrier was dragged in, company is already in ctx — Q0 answer is just the contact name
+    const company = prefilledCarrier
+      ? (ctxRef.current.company || prefilledCarrier)
+      : (stageQ === 0 ? answer.split(/[,\/]/)[0].trim() : (ctxRef.current.company || "your company"));
     const newCtx = { ...ctxRef.current, [qm.key]: answer };
-    if (stageQ === 0) newCtx.company = company;
+    if (stageQ === 0 && !prefilledCarrier) newCtx.company = company;
     setCtx(newCtx);
-    setCompletedQAs(prev => [...prev, { label: qm.label, answer }]);
+    const completedLabel = stageQ === 0 && prefilledCarrier ? "Contact Person" : qm.label;
+    setCompletedQAs(prev => [...prev, { label: completedLabel, answer }]);
 
     // Tony reaction
     const reaction = (() => {
+      if (stageQ === 0 && prefilledCarrier) return `Great to meet you, ${answer}! Let's get ${company} fully set up.`;
       if (stageQ === 0) return `Good to meet you. I'll use "${company}" throughout.`;
       if (stageQ === 1 && (answer.includes("Pharma") || answer.includes("High-value") || answer.includes("electronics")))
         return "High-value freight — we'll tighten your fraud rules accordingly.";
@@ -557,20 +559,28 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
   onAnswer: (a: string) => void;
   prefilledCarrier?: string;
 }) {
-  const company = ctx.company || "your company";
+  const company = ctx.company || prefilledCarrier || "your company";
   const qm = Q_META[stageQ];
-  const questionText = qm?.text.replace("{{company}}", company) ?? "";
+  // When carrier is pre-filled, Q0 only needs the contact name
+  const questionText = qm
+    ? (stageQ === 0 && prefilledCarrier
+        ? `Who am I speaking with at **${prefilledCarrier}**?`
+        : qm.text.replace("{{company}}", company))
+    : "";
 
   return (
     <div className="space-y-2">
-      {/* Dropped carrier badge */}
-      {prefilledCarrier && stageQ === 0 && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#00c2b2]/30 bg-[#00c2b2]/8">
+      {/* Company confirmed banner — shown when carrier was dragged in */}
+      {prefilledCarrier && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#00c2b2]/40 bg-[#00c2b2]/8">
           <div className="h-5 w-5 rounded-md bg-[#00c2b2]/20 flex items-center justify-center shrink-0">
             <Truck className="h-3 w-3 text-[#00c2b2]" />
           </div>
-          <span className="text-[11px] text-[#00c2b2] font-medium flex-1 truncate">Carrier dragged in: <strong>{prefilledCarrier}</strong></span>
-          <span className="text-[9px] text-[#00c2b2]/60 border border-[#00c2b2]/20 rounded px-1.5 py-0.5">Pre-filled</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[9px] uppercase tracking-wider text-[#00c2b2]/60 leading-none mb-0.5">Company being set up</p>
+            <p className="text-[12px] text-[#00c2b2] font-semibold truncate">{prefilledCarrier}</p>
+          </div>
+          <CheckCircle2 className="h-4 w-4 text-[#00c2b2] shrink-0" />
         </div>
       )}
 
@@ -591,7 +601,11 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
       {stageQ <= 5 && qm && (
         <div className="rounded-lg border border-[#00c2b2]/20 bg-[#00c2b2]/4 overflow-hidden">
           <div className="px-3 py-2 border-b border-[#00c2b2]/10">
-            <p className="text-[11px] font-medium text-white">{questionText}</p>
+            <p className="text-[11px] font-medium text-white">
+              {questionText.split("**").map((part, i) =>
+                i % 2 === 1 ? <strong key={i}>{part}</strong> : part
+              )}
+            </p>
           </div>
           <div className="p-2">
             {qm.freeText ? (
@@ -601,7 +615,7 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
                   value={inputValue}
                   onChange={e => setInputValue(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && inputValue.trim()) { onAnswer(inputValue.trim()); setInputValue(""); } }}
-                  placeholder={prefilledCarrier && stageQ === 0 ? `${prefilledCarrier}, your name…` : "Type company name and your name…"}
+                  placeholder={prefilledCarrier && stageQ === 0 ? "Your name…" : "Type company name and your name…"}
                   className="flex-1 px-3 py-1.5 rounded-md text-[11px] bg-[var(--mil-elevated)] border border-[var(--mil-border)] text-white placeholder:text-white/25 focus:outline-none focus:border-[#00c2b2]/50"
                 />
                 <button
