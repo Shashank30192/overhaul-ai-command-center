@@ -531,9 +531,10 @@ export function CarrierRiskDashboard() {
                 draggable
                 onDragStart={(e) => {
                   dragCarrierRef.current = carrier;
-                  setDraggingId(carrier.id);
                   e.dataTransfer.effectAllowed = "copy";
                   e.dataTransfer.setData("text/plain", carrier.name);
+                  // delay so React re-render doesn't break the drag
+                  setTimeout(() => setDraggingId(carrier.id), 0);
                 }}
                 onDragEnd={() => setDraggingId(null)}
                 className={cn(
@@ -581,23 +582,25 @@ export function CarrierRiskDashboard() {
       </aside>
 
       {/* ── Right: Detail Panel ── */}
-      <main
-        className="flex-1 min-w-0 bg-[var(--mil-bg)] relative overflow-hidden"
-        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragOver(true); }}
-        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
-        onDrop={(e) => {
-          e.preventDefault();
-          setIsDragOver(false);
-          setDraggingId(null);
-          // prefer dataTransfer (reliable cross-browser) then fall back to ref
-          const name = e.dataTransfer.getData("text/plain") || dragCarrierRef.current?.name;
-          dragCarrierRef.current = null;
-          if (name) {
-            setDroppedCarrier(name);
-            setShowOnboarding(true);
-          }
-        }}
-      >
+      <main className="flex-1 min-w-0 bg-[var(--mil-bg)] relative overflow-hidden">
+        {/* Transparent drag-capture overlay — rendered whenever a carrier is being dragged.
+            Sits on top of all content so child elements can't swallow the drop event. */}
+        {draggingId && (
+          <div
+            className="absolute inset-0 z-50"
+            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragOver(true); }}
+            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
+            onDrop={(e) => {
+              e.preventDefault();
+              setIsDragOver(false);
+              setDraggingId(null);
+              const name = e.dataTransfer.getData("text/plain") || dragCarrierRef.current?.name;
+              dragCarrierRef.current = null;
+              if (name) { setDroppedCarrier(name); setShowOnboarding(true); }
+            }}
+          />
+        )}
+
         <AnimatePresence mode="wait">
           <motion.div key={selected.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
