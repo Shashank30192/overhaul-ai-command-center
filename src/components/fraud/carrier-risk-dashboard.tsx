@@ -6,7 +6,7 @@ import {
   Search, SlidersHorizontal, ShieldAlert, Shield, ShieldCheck,
   ShieldX, ChevronDown, ChevronUp, MapPin, Hash, User, Phone,
   Mail, Briefcase, AlertTriangle, CheckCircle2, BarChart3,
-  Truck, FileText, Activity, Plus, Bell, Bot,
+  Truck, FileText, Activity, Plus, Bell, Bot, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { FraudWatchAIOnboarding } from "./fraudwatch-ai-onboarding";
@@ -537,7 +537,7 @@ export function CarrierRiskDashboard() {
                 }}
                 onDragEnd={() => setDraggingId(null)}
                 className={cn(
-                  "w-full text-left px-4 py-3 border-b border-[var(--mil-border)] transition-all cursor-grab active:cursor-grabbing select-none",
+                  "group w-full text-left px-4 py-3 border-b border-[var(--mil-border)] transition-all cursor-grab active:cursor-grabbing select-none",
                   isActive ? "bg-[var(--mil-elevated)]" : "hover:bg-[var(--mil-surface)]",
                   isDragging && "opacity-40"
                 )}
@@ -548,20 +548,26 @@ export function CarrierRiskDashboard() {
                     {carrier.name}
                   </span>
                   <div className="flex items-center gap-1.5">
-                    {/* Drag handle hint */}
-                    <span className="text-[9px] text-[var(--mil-muted)] opacity-0 group-hover:opacity-100 transition-opacity select-none">⠿</span>
                     <span className="h-6 w-6 rounded-full bg-red-500 flex items-center justify-center text-white text-[10px] font-bold shrink-0">
                       {carrier.score}
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <span className={cn("text-[10px]", statusCfg.color)}>
                     {carrier.tags[0]}
                   </span>
-                  {carrier.tags.length > 1 && (
-                    <span className="text-[10px] text-[var(--mil-muted)]">+{carrier.tags.length - 1} more</span>
-                  )}
+                  {/* Onboard button — always visible, no drag needed */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDroppedCarrier(carrier.name);
+                      setShowOnboarding(true);
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium text-[#00c2b2] border border-[#00c2b2]/30 bg-[#00c2b2]/8 hover:bg-[#00c2b2]/20 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                  >
+                    Onboard <ArrowRight className="h-2.5 w-2.5" />
+                  </button>
                 </div>
               </div>
             );
@@ -583,11 +589,12 @@ export function CarrierRiskDashboard() {
           e.preventDefault();
           setIsDragOver(false);
           setDraggingId(null);
-          const carrier = dragCarrierRef.current;
-          if (carrier) {
-            setDroppedCarrier(carrier.name);
+          // prefer dataTransfer (reliable cross-browser) then fall back to ref
+          const name = e.dataTransfer.getData("text/plain") || dragCarrierRef.current?.name;
+          dragCarrierRef.current = null;
+          if (name) {
+            setDroppedCarrier(name);
             setShowOnboarding(true);
-            dragCarrierRef.current = null;
           }
         }}
       >
