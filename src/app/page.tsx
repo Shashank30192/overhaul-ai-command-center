@@ -22,7 +22,7 @@ const AGENT_EVENTS = [
   { agent: "RiskGPT", action: "flagged 97% theft probability — weekend transit + route deviation", tone: "text-red-300" },
   { agent: "GSOC Analysis Agent", action: "determined false indicator — alert closed, zero analyst minutes", tone: "text-blue-300" },
   { agent: "Orchestrator", action: "chained 3 sub-agents to verify carrier MC-294817 in 41s", tone: "text-purple-300" },
-  { agent: "Control Tower", action: "auto-healed SAP TM integration — 0 shipments dropped", tone: "text-amber-300" },
+  { agent: "Inventory Federation", action: "auto-healed SAP TM integration — 0 shipments dropped", tone: "text-amber-300" },
 ];
 
 function LiveAgentFeed() {
@@ -93,9 +93,9 @@ const AGENT_WORKFORCE = [
     name: "Multi-Agent Orchestrator",
     tag: "Agent-to-Agent Chains",
     accent: "purple",
-    desc: "Coordinates specialist agents — discovery, verification, analysis — into governed workflows with human gates between every tier.",
+    desc: "Coordinates specialist agents — discovery, verification, analysis — into governed workflows with human gates between every tier. Now part of Inventory Federation.",
     bullets: ["Visual agent chain builder", "Human approval between tiers", "Full audit trail per hand-off"],
-    href: "/orchestrator",
+    href: "/control-tower",
     cta: "See the chains",
   },
 ] as const;
@@ -123,8 +123,7 @@ const PLATFORM_FEATURES = [
   { icon: Cpu,        title: "ACE — Agentic Customer Experience", desc: "Ask AI, Gen AI assistant, and the autonomous Resolution Agent in one command center", href: "/self-service", flagship: true },
   { icon: Lock,       title: "Fraud Watch", desc: "Carrier risk dashboard with drag-and-drop AI onboarding by Tony", href: "/fraud-watch", flagship: true },
   { icon: Eye,        title: "Risk Monitor", desc: "Real-time heatmaps, predictive scoring, and embedded RiskGPT", href: "/risk", flagship: true },
-  { icon: Activity,   title: "Control Tower", desc: "Enterprise AI operations — API health, AI command, auto-healing integrations", href: "/control-tower", flagship: false },
-  { icon: GitBranch,  title: "Orchestrator", desc: "Design and govern multi-agent workflows with approval gates", href: "/orchestrator", flagship: false },
+  { icon: Activity,   title: "Inventory Federation", desc: "Enterprise AI operations — API health, AI command, auto-healing integrations, and the multi-agent workflow orchestrator", href: "/control-tower", flagship: false },
   { icon: Bot,        title: "AI Copilot", desc: "Natural-language access to your entire supply chain network", href: "/copilot", flagship: false },
   { icon: ShieldAlert,title: "Fraud Detection", desc: "Double brokering, fake PODs, and carrier identity fraud — caught by AI", href: "/fraud", flagship: false },
   { icon: Globe,      title: "Digital Twin", desc: "Living map of every shipment with per-lane risk simulation", href: "/digital-twin", flagship: false },
@@ -304,7 +303,7 @@ export default function HomePage() {
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold text-white">The Complete Platform</h2>
             <p className="mt-3 text-[var(--mil-muted)]">
-              Twelve products. One agentic core. Intelligence at every layer.
+              Ten products. One agentic core. Intelligence at every layer.
             </p>
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">

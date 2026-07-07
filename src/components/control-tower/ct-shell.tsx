@@ -21,7 +21,7 @@ const NAV: NavItem[] = [
   { id: 'integrations', label: 'Integrations', icon: Plug },
   { id: 'agents', label: 'Agents', icon: Server },
   { id: 'workflow', label: 'AI Ecosystem Studio', icon: GitBranch, badge: '✦' },
-  { id: 'orchestrator', label: 'Workflow Orchestrator', icon: Layers },
+  { id: 'orchestrator', label: 'Orchestrator', icon: Layers },
   { id: 'api-monitor', label: 'API Monitor', icon: Activity },
   { id: 'analytics', label: 'Analytics', icon: BarChart3 },
   { id: 'settings', label: 'Settings', icon: Settings },
@@ -87,7 +87,7 @@ export function CTShell({ view, setView, children, toast, clearToast }: CTShellP
               <Zap className="h-3.5 w-3.5 text-[#00c2b2]" />
             </div>
             <div>
-              <p className="text-xs font-bold text-white tracking-tight">Control Tower</p>
+              <p className="text-xs font-bold text-white tracking-tight">Inventory Federation</p>
               <p className="text-[9px] text-white/30 uppercase tracking-widest">Supply Chain AI</p>
             </div>
           </div>

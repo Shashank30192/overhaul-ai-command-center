@@ -4,7 +4,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   Brain, ShieldAlert, Eye, Map, BarChart3, FileWarning,
-  Activity, Cpu, ArrowUpRight, Zap, CheckCircle, GitBranch,
+  Activity, Cpu, ArrowUpRight, Zap, CheckCircle,
   TerminalSquare,
 } from "lucide-react";
 
@@ -46,22 +46,10 @@ const APPS = [
     badge: "3 alerts",
   },
   {
-    icon: GitBranch,
-    title: "Orchestrator",
-    tagline: "Multi-agent workflow chains",
-    desc: "Design and govern agent-to-agent workflows — discovery, verification, and analysis agents with human gates between tiers.",
-    href: "/orchestrator",
-    color: "#8b5cf6",
-    bg: "bg-purple-500/10",
-    border: "border-purple-500/20",
-    status: "live",
-    badge: "A2A",
-  },
-  {
     icon: Activity,
-    title: "Control Tower",
+    title: "Inventory Federation",
     tagline: "Enterprise AI operations hub",
-    desc: "Live shipment grid, SLA tracking, AI command center, and API monitor in one place.",
+    desc: "Live shipment grid, SLA tracking, AI command center, API monitor, and the multi-agent Orchestrator — discovery, verification, and analysis agents with human gates between tiers — in one place.",
     href: "/control-tower",
     color: "#3b82f6",
     bg: "bg-blue-500/10",
@@ -132,7 +120,7 @@ const APPS = [
 ];
 
 const STATS = [
-  { value: "10", label: "Active Apps" },
+  { value: "9", label: "Active Apps" },
   { value: "9", label: "AI Agents Running" },
   { value: "847", label: "Shipments Live" },
   { value: "99.1%", label: "Platform Uptime" },

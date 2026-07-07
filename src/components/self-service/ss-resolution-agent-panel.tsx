@@ -1074,7 +1074,7 @@ export function SSResolutionAgentPanel() {
                           <p className="text-white/35">Goal: {goalInput || "Investigation complete"}</p>
                           <p className="text-white/35">Actions: {run.actions.length} executed · {autoCount} auto · {approvalCount} approved</p>
                           <p className="text-white/35">GSOC Determination: {a2a?.verdict === "false_indicator" ? "False indicator — no action" : "Action required — see incident"}</p>
-                          <p style={{ color: "#4A154B80" }}>via Overhaul ACE · Control Tower</p>
+                          <p style={{ color: "#4A154B80" }}>via Overhaul ACE · Inventory Federation</p>
                         </div>
                       </div>
                     </div>

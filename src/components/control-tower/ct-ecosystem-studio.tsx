@@ -764,7 +764,7 @@ export function CTEcosystemStudio({ onToast }: { onToast: (m: string) => void })
                   <p className="text-white/35">Dock 7-B fault → SLA breach 98%</p>
                   <p className="text-white/35">Customer: Nexus Pharma PLATINUM</p>
                   <p className="text-white/35">Action: Dock 9-A reassigned ✓</p>
-                  <p style={{ color: '#4A154B80' }}>via Overhaul AI · Control Tower</p>
+                  <p style={{ color: '#4A154B80' }}>via Overhaul AI · Inventory Federation</p>
                 </div>
               </div>
             </div>

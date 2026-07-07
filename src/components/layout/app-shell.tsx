@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Bot, ShieldAlert, Map, Building2,
-  GitBranch, Activity, BarChart3, Crown, Settings,
+  Activity, BarChart3, Crown, Settings,
   Search, Bell, X, Zap, ChevronRight, Cpu, Globe, AlertCircle,
   CheckCircle, Wifi, Package, FileWarning, TerminalSquare
 } from "lucide-react";
@@ -30,8 +30,7 @@ const NAV = [
     items: [
       { href: "/self-service", label: "ACE", icon: Cpu, dot: true },
       { href: "/agent", label: "Agent Center", icon: TerminalSquare },
-      { href: "/orchestrator", label: "Orchestrator", icon: GitBranch },
-      { href: "/control-tower", label: "Control Tower", icon: Activity },
+      { href: "/control-tower", label: "Inventory Federation", icon: Activity },
     ],
   },
   {

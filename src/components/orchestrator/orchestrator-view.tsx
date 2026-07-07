@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain, Database, Package, Truck, BarChart3,
   CheckCircle2, Loader2, AlertTriangle, Zap,
-  Send, RotateCcw, Activity, Plug, Settings,
-  LayoutDashboard, GitBranch, ShieldCheck,
-  Users, ChevronRight, TrendingDown, Clock,
-  ArrowRight, Sparkles, Server, Network,
+  Send, RotateCcw, Activity,
+  GitBranch,
+  Users, TrendingDown, Clock,
+  ArrowRight, Sparkles, Server,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -352,78 +352,6 @@ function AgentTopology({ phase }: { phase: RunPhase }) {
   );
 }
 
-// ─── Left Sidebar ─────────────────────────────────────────────────────────────
-
-const NAV_ITEMS = [
-  { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: Network, label: "AI Orchestrator", href: "/orchestrator", active: true },
-  { icon: Package, label: "Shipments", href: "/risk" },
-  { icon: ShieldCheck, label: "Risk Monitor", href: "/risk" },
-  { icon: Brain, label: "Agents", href: "#" },
-  { icon: Plug, label: "Integrations", href: "#" },
-  { icon: Settings, label: "Settings", href: "#" },
-];
-
-const INTEGRATIONS = [
-  { label: "SAP ERP", color: "bg-blue-400", status: "Connected" },
-  { label: "Manhattan WMS", color: "bg-amber-400", status: "Connected" },
-  { label: "Oracle TMS", color: "bg-purple-400", status: "Connected" },
-];
-
-function Sidebar() {
-  return (
-    <aside className="w-56 shrink-0 flex flex-col border-r border-white/6" style={{ background: "#0d0f10" }}>
-      {/* Brand */}
-      <div className="px-4 pt-5 pb-4 border-b border-white/5">
-        <div className="flex items-center gap-2.5 mb-0.5">
-          <div className="h-7 w-7 rounded-lg bg-[#00c2b2]/20 border border-[#00c2b2]/30 flex items-center justify-center shrink-0">
-            <Network className="h-3.5 w-3.5 text-[#00c2b2]" />
-          </div>
-          <div>
-            <p className="text-xs font-bold text-white leading-tight">Multi-Agent</p>
-            <p className="text-[10px] text-[#00c2b2]/70 leading-tight">Orchestrator</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Nav */}
-      <nav className="flex-1 px-2 py-3 space-y-0.5">
-        <p className="text-[9px] uppercase tracking-widest text-white/20 px-2 mb-2">Platform</p>
-        {NAV_ITEMS.map((item) => (
-          <a
-            key={item.label}
-            href={item.href}
-            className={cn(
-              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs transition-colors",
-              item.active
-                ? "bg-[#00c2b2]/10 text-[#00c2b2] border border-[#00c2b2]/20"
-                : "text-white/40 hover:text-white/70 hover:bg-white/4"
-            )}
-          >
-            <item.icon className="h-3.5 w-3.5 shrink-0" />
-            {item.label}
-            {item.active && <ChevronRight className="h-3 w-3 ml-auto" />}
-          </a>
-        ))}
-      </nav>
-
-      {/* Integrations status */}
-      <div className="px-3 pb-4 border-t border-white/5 pt-3">
-        <p className="text-[9px] uppercase tracking-widest text-white/20 mb-2">System Connections</p>
-        <div className="space-y-1.5">
-          {INTEGRATIONS.map((i) => (
-            <div key={i.label} className="flex items-center gap-2">
-              <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", i.color)} />
-              <span className="text-[10px] text-white/40 flex-1 truncate">{i.label}</span>
-              <span className="text-[9px] text-emerald-400">{i.status}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </aside>
-  );
-}
-
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export function OrchestratorView() {
@@ -561,7 +489,6 @@ export function OrchestratorView() {
 
   return (
     <div className="flex h-full overflow-hidden" style={{ background: "#0d0f10" }}>
-      <Sidebar />
 
       {/* ── Main Area ── */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">

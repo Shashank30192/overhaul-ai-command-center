@@ -8,7 +8,7 @@ import { CTApiMonitor } from "@/components/control-tower/ct-api-monitor";
 import { CTIntegrations } from "@/components/control-tower/ct-integrations";
 import { CTAnalytics } from "@/components/control-tower/ct-analytics";
 import { CTEcosystemStudio } from "@/components/control-tower/ct-ecosystem-studio";
-import { CTWorkflowOrchestrator } from "@/components/control-tower/ct-workflow-orchestrator";
+import { OrchestratorView } from "@/components/orchestrator/orchestrator-view";
 import { CTShipmentDetail } from "@/components/control-tower/ct-shipment-detail";
 import { type Shipment } from "@/components/control-tower/mock-data";
 
@@ -37,7 +37,7 @@ export default function ControlTowerPage() {
         {view === 'workflow' && <CTEcosystemStudio onToast={onToast} />}
         {view === 'api-monitor' && <CTApiMonitor />}
         {view === 'analytics' && <CTAnalytics />}
-        {view === 'orchestrator' && <CTWorkflowOrchestrator onToast={onToast} />}
+        {view === 'orchestrator' && <OrchestratorView />}
         {view === 'settings' && <Placeholder title="Settings" />}
       </CTShell>
 
