@@ -1,45 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Image from "next/image";
 import { motion } from "framer-motion";
-import { Search } from "lucide-react";
 
-// Sherlock's on-screen presence — a gold detective emblem that stays visibly
-// "alive" rather than a static initial-in-a-circle. Three states map onto the
-// existing agentic states already tracked by the onboarding flow (no new
-// backend/state concepts — just visual interpretation of `processing` and
-// whether Sherlock's line is actively changing):
-//   idle      — waiting on the customer, slow breathing + periodic blink
+// Sherlock's on-screen presence — his real portrait, kept visibly "alive"
+// with motion layered on top rather than a static headshot. Three states
+// map onto agentic states the onboarding flow already tracks (no new
+// backend/state concepts — just a visual read of `processing` and whether
+// Sherlock's line just changed):
+//   idle      — waiting on the customer, slow breathing + soft glow
 //   thinking  — processing/validating (maps to existing `processing` boolean)
 //   speaking  — actively delivering a new line (maps to sherlockLine changing)
 
 export type SherlockState = "idle" | "thinking" | "speaking";
 
 const GOLD = "#D4AF37";
-
-function Blink() {
-  const [blinking, setBlinking] = useState(false);
-  useEffect(() => {
-    let t: ReturnType<typeof setTimeout>;
-    const cycle = () => {
-      t = setTimeout(() => {
-        setBlinking(true);
-        setTimeout(() => setBlinking(false), 140);
-        cycle();
-      }, 3200 + Math.random() * 2600);
-    };
-    cycle();
-    return () => clearTimeout(t);
-  }, []);
-  return (
-    <motion.div
-      className="absolute rounded-full bg-[#0d0f10]"
-      style={{ width: 5, height: blinking ? 5 : 1, top: "42%", left: "50%", x: "-50%", y: "-50%" }}
-      animate={{ height: blinking ? 5 : 1 }}
-      transition={{ duration: 0.08 }}
-    />
-  );
-}
 
 export function SherlockAvatar({ state, size = 44 }: { state: SherlockState; size?: number }) {
   return (
@@ -48,49 +23,54 @@ export function SherlockAvatar({ state, size = 44 }: { state: SherlockState; siz
         {/* Ambient glow ring — brightens when thinking/speaking */}
         <motion.div
           className="absolute -inset-1.5 rounded-full"
-          style={{ background: `radial-gradient(circle, ${GOLD}33, transparent 70%)` }}
+          style={{ background: `radial-gradient(circle, ${GOLD}40, transparent 70%)` }}
           animate={{
-            opacity: state === "idle" ? [0.4, 0.6, 0.4] : [0.55, 0.85, 0.55],
+            opacity: state === "idle" ? [0.4, 0.6, 0.4] : [0.6, 0.9, 0.6],
             scale: state === "idle" ? [1, 1.04, 1] : [1, 1.08, 1],
           }}
           transition={{ duration: state === "idle" ? 3.4 : 1.1, repeat: Infinity, ease: "easeInOut" }}
         />
 
-        {/* Breathing badge body */}
+        {/* Breathing portrait */}
         <motion.div
-          className="relative rounded-full flex items-center justify-center overflow-hidden"
+          className="relative rounded-full overflow-hidden"
           style={{
             width: size, height: size,
-            background: "linear-gradient(155deg, #1a1c1e 0%, #0d0f10 100%)",
-            border: `1.5px solid ${GOLD}66`,
-            boxShadow: `0 0 0 1px rgba(0,0,0,0.4), 0 4px 14px -4px ${GOLD}40`,
+            border: `1.5px solid ${GOLD}88`,
+            boxShadow: `0 0 0 1px rgba(0,0,0,0.4), 0 4px 14px -4px ${GOLD}50`,
           }}
           animate={{ scale: state === "idle" ? [1, 1.02, 1] : 1 }}
           transition={{ duration: 3.4, repeat: state === "idle" ? Infinity : 0, ease: "easeInOut" }}
         >
-          {/* "S" monogram, dims slightly under the magnifier on thinking */}
-          <span
-            className="font-bold select-none"
-            style={{ fontSize: size * 0.34, color: GOLD, fontFamily: "var(--font-geist-sans, sans-serif)" }}
-          >
-            S
-          </span>
+          <Image
+            src="/avatars/sherlock-square.png"
+            alt="Sherlock"
+            width={size}
+            height={size}
+            className="h-full w-full object-cover"
+            priority
+          />
 
-          {/* Magnifying glass — sweeps while thinking, otherwise rests bottom-right */}
-          <motion.div
-            className="absolute"
-            style={{ width: size * 0.46, height: size * 0.46 }}
-            animate={
-              state === "thinking"
-                ? { rotate: [-8, 10, -8], x: [size * 0.1, size * 0.16, size * 0.1], y: [size * 0.1, size * 0.14, size * 0.1] }
-                : { rotate: 0, x: size * 0.13, y: size * 0.13 }
-            }
-            transition={{ duration: 1.6, repeat: state === "thinking" ? Infinity : 0, ease: "easeInOut" }}
-          >
-            <Search className="h-full w-full" style={{ color: GOLD }} strokeWidth={2.5} />
-          </motion.div>
+          {/* Thinking — a soft scanning sweep across the portrait */}
+          {state === "thinking" && (
+            <motion.div
+              className="absolute inset-x-0 h-1/3 pointer-events-none"
+              style={{ background: `linear-gradient(180deg, transparent, ${GOLD}30, transparent)` }}
+              initial={{ top: "-33%" }}
+              animate={{ top: "100%" }}
+              transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}
+            />
+          )}
 
-          {state === "idle" && <Blink />}
+          {/* Speaking — a subtle warm rim-light */}
+          {state === "speaking" && (
+            <motion.div
+              className="absolute inset-0 pointer-events-none rounded-full"
+              style={{ boxShadow: `inset 0 0 10px 1px ${GOLD}70` }}
+              animate={{ opacity: [0.5, 1, 0.5] }}
+              transition={{ duration: 0.9, repeat: Infinity, ease: "easeInOut" }}
+            />
+          )}
         </motion.div>
       </div>
 
