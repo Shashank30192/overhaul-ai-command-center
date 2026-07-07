@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, CheckCircle2, Loader2, Zap, ChevronRight,
   Shield, ShieldCheck, Truck, User, MapPin, AlertTriangle,
-  Check, Network, Activity, Lock,
+  Check, Network, Activity, Lock, TrendingUp, Sparkles, Radar,
+  Fingerprint, Phone, IdCard, Gauge, ArrowRight, BadgeAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,29 @@ interface AgentLogEntry {
   agent: string;
   action: string;
   ts: string;
+}
+
+interface PredictiveInsight {
+  score: number;
+  exposure: string;
+  percentile: number;
+  confidence: number;
+  vectors: string[];
+  incidentsPreventedPerYear: number;
+  roiEstimate: string;
+}
+
+interface DriverProfile {
+  id: string;
+  name: string;
+  cdl: string;
+  yearsExperience: number;
+  safetyScore: number;
+  backgroundCheck: "clear" | "pending" | "flagged";
+  biometricVerified: boolean;
+  phoneVerified: boolean;
+  lastActive: string;
+  gsocMatch?: string;
 }
 
 // ── Static data ────────────────────────────────────────────────────────────────
@@ -92,6 +116,75 @@ const FRAUD_RULES: FraudRule[] = [
   { id: "r6", name: "After-Hours Load Alert",         description: "Flag pickups 10 pm–5 am for manual review",                           confidence: 87, severity: "medium"   },
 ];
 
+const DRIVERS: DriverProfile[] = [
+  { id: "d1", name: "Marcus Reyes",   cdl: "TX-88213", yearsExperience: 7,  safetyScore: 96, backgroundCheck: "clear",   biometricVerified: true,  phoneVerified: true,  lastActive: "Dallas, TX" },
+  { id: "d2", name: "Angela Kim",     cdl: "CA-44710", yearsExperience: 3,  safetyScore: 88, backgroundCheck: "clear",   biometricVerified: true,  phoneVerified: true,  lastActive: "Fresno, CA" },
+  { id: "d3", name: "Devon Walsh",    cdl: "IL-19042", yearsExperience: 11, safetyScore: 99, backgroundCheck: "clear",   biometricVerified: true,  phoneVerified: true,  lastActive: "Joliet, IL" },
+  { id: "d4", name: "Priya Nandan",   cdl: "NJ-77321", yearsExperience: 1,  safetyScore: 74, backgroundCheck: "pending", biometricVerified: false, phoneVerified: true,  lastActive: "Newark, NJ" },
+  { id: "d5", name: "Ray Contreras",  cdl: "FL-50218", yearsExperience: 5,  safetyScore: 61, backgroundCheck: "flagged", biometricVerified: false, phoneVerified: false, lastActive: "Miami, FL", gsocMatch: "Alias match — GSOC freight fraud watchlist entry #4471" },
+];
+
+// Deterministic predictive-risk model — reads the Q&A answers and produces a
+// forward-looking exposure estimate, not just a snapshot of current state.
+function computePredictiveRisk(ctx: Record<string, string>): PredictiveInsight {
+  let score = 38;
+  const vectors: string[] = [];
+  let confidence = 95;
+
+  const cargo = ctx.cargo ?? "";
+  const carriers = ctx.carriers ?? "";
+  const geo = ctx.geo ?? "";
+  const fraud = ctx.fraud ?? "";
+  const verify = ctx.verify ?? "";
+
+  if (/pharma|high-value|electronics/i.test(cargo)) { score += 18; vectors.push("High-value cargo attracts organized theft rings"); }
+  else if (/hazmat/i.test(cargo)) { score += 10; vectors.push("Hazmat loads carry regulatory + tampering exposure"); }
+  else if (/refrigerated/i.test(cargo)) { score += 6; vectors.push("Cold-chain freight is a target for load-swap fraud"); }
+
+  if (/500\+/.test(carriers)) { score += 15; }
+  else if (/101–500/.test(carriers)) { score += 10; }
+  else if (/26–100/.test(carriers)) { score += 5; }
+
+  if (/global/i.test(geo)) { score += 12; vectors.push("Cross-border freight increases carrier identity fraud risk"); }
+  else if (/europe/i.test(geo)) { score += 8; vectors.push("Multi-region lanes widen your carrier verification surface"); }
+  else if (/canada|mexico/i.test(geo)) { score += 4; }
+
+  if (/multiple incidents/i.test(fraud)) { score += 20; vectors.push("Recent fraud history strongly predicts recurrence within 12 months"); }
+  else if (/one or two/i.test(fraud)) { score += 12; vectors.push("Prior incidents indicate an existing gap in carrier vetting"); }
+  else if (/minor attempts/i.test(fraud)) { score += 5; }
+  else if (/not sure/i.test(fraud)) { confidence -= 8; }
+
+  if (/no formal process/i.test(verify)) { score += 15; vectors.push("No formal carrier verification is your single largest exposure"); }
+  else if (/manual paperwork/i.test(verify)) { score += 10; vectors.push("Manual paperwork vetting is the #1 entry point for double-brokering"); }
+  else if (/fmcsa lookup only/i.test(verify)) { score += 5; vectors.push("FMCSA-only checks miss recently-registered shell carriers"); }
+
+  score = Math.min(Math.max(score, 12), 99);
+  if (vectors.length < 3) vectors.push("Weekend and after-hours pickups see 3x the fraud rate of weekday loads");
+  if (vectors.length < 3) vectors.push("Carriers under 6 months old account for the majority of identity fraud");
+
+  const carrierCountNum =
+    /500\+/.test(carriers) ? 650 :
+    /101–500/.test(carriers) ? 300 :
+    /26–100/.test(carriers) ? 60 : 15;
+
+  const exposureLow = Math.round(carrierCountNum * (score / 100) * 4_200);
+  const exposureHigh = Math.round(exposureLow * 2.4);
+  const fmt = (n: number) => n >= 1_000_000 ? `$${(n / 1_000_000).toFixed(1)}M` : `$${Math.round(n / 1000)}K`;
+
+  const incidentsPreventedPerYear = Math.max(2, Math.round((score / 100) * carrierCountNum * 0.06));
+  const roiEstimate = fmt(incidentsPreventedPerYear * 38_000);
+
+  return {
+    score,
+    exposure: `${fmt(exposureLow)}–${fmt(exposureHigh)}`,
+    percentile: Math.min(96, Math.round(score * 0.9 + 5)),
+    confidence,
+    vectors: vectors.slice(0, 3),
+    incidentsPreventedPerYear,
+    roiEstimate,
+  };
+}
+
 // ── Main Component ─────────────────────────────────────────────────────────────
 
 export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose: () => void; prefilledCarrier?: string }) {
@@ -118,6 +211,8 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const [readiness,       setReadiness]       = useState(0);
   const [processing,      setProcessing]      = useState(false);
   const [inputValue,      setInputValue]      = useState("");
+  const [predictiveInsight, setPredictiveInsight] = useState<PredictiveInsight | null>(null);
+  const [driverRoster,    setDriverRoster]    = useState<DriverProfile[] | null>(null);
   const ctxRef        = useRef(ctx);
   const activeRef     = useRef<HTMLDivElement>(null);
   const timers        = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -177,14 +272,24 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     const nextQ = stageQ + 1;
     if (nextQ > 5) {
       later(() => {
-        setTonyLine(`That's everything I need from you, ${company}. Running discovery agents now.`);
-        markDone(1, [company, newCtx.cargo, newCtx.carriers, newCtx.geo].filter(Boolean).join(" · "));
-        setReadiness(18);
-        later(() => startStage2(newCtx), 1000);
+        setTonyLine(`That's everything I need from you, ${company}. Before I scan your systems, here's my predictive risk read on your operation.`);
+        setPredictiveInsight(computePredictiveRisk(newCtx));
+        setReadiness(14);
+        setProcessing(false);
+        scrollActive();
       }, reaction ? 700 : 300);
     } else {
       later(() => { setStageQ(nextQ); setProcessing(false); scrollActive(); }, reaction ? 600 : 300);
     }
+  };
+
+  const handleContinueFromPredictive = () => {
+    if (processing) return;
+    setProcessing(true);
+    const c = ctxRef.current;
+    markDone(1, [c.company, c.cargo, c.carriers, c.geo].filter(Boolean).join(" · "));
+    setReadiness(18);
+    later(() => startStage2(c), 400);
   };
 
   // ── Stage 2: Enterprise Discovery ─────────────────────────────────────────
@@ -257,7 +362,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       { id: "p4-2", agent: "configuration_agent",     action: "generate_rules",   status: "queued" },
       { id: "p4-3", agent: "configuration_agent",     action: "package_config",   status: "queued" },
     ];
-    setPipeline(items); setFraudRules(null);
+    setPipeline(items); setFraudRules(null); setDriverRoster(null);
     setTonyLine("Validating your carrier network and generating fraud rules.");
     scrollActive();
 
@@ -291,6 +396,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
               const company = c.company || "your company";
               setTonyLine(`6 fraud rules generated for ${company}. 3 GSOC-flagged carriers in your network need immediate attention. You approve, I push to config.`);
               setFraudRules(FRAUD_RULES);
+              setDriverRoster(DRIVERS);
               setGate({ id: "gate-3", question: "Approve these fraud rules?", approved: false });
               setProcessing(false); scrollActive();
             }, 600);
@@ -369,8 +475,11 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
             later(() => {
               setIsLive(true); setReadiness(100); setProcessing(false);
               setTonyLine(`You're live, ${ctxRef.current.company || "team"}. FraudWatch is monitoring your full carrier network. I'll be here if anything needs tuning in the first 30 days.`);
-              markDone(6, "FraudWatch live · 347 carriers monitored · 6 rules active");
               scrollActive();
+              // Hold the Go-Live card on screen before collapsing to the
+              // one-line summary — marking done immediately would hide the
+              // card in the same render it appears.
+              later(() => markDone(6, "FraudWatch live · 347 carriers monitored · 6 rules active"), 4000);
             }, 600);
           }
         }, 2000);
@@ -512,6 +621,11 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                         />
                       )}
 
+                      {/* Stage 1 — predictive risk read, shown once Q&A completes */}
+                      {s.n === 1 && predictiveInsight && (
+                        <PredictiveRiskCard insight={predictiveInsight} onContinue={handleContinueFromPredictive} disabled={processing} />
+                      )}
+
                       {/* Agent pipeline (stages 2, 4, 6) */}
                       {(s.n === 2 || s.n === 4 || s.n === 6) && pipeline.length > 0 && (
                         <PipelineView items={pipeline} />
@@ -522,6 +636,9 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
 
                       {/* Stage 4 — fraud rules */}
                       {s.n === 4 && fraudRules && <FraudRulesCard rules={fraudRules} />}
+
+                      {/* Stage 4 — driver verification roster */}
+                      {s.n === 4 && driverRoster && <DriverRosterCard drivers={driverRoster} />}
 
                       {/* Stage 5 — pre-deploy checks */}
                       {s.n === 5 && preChecks && <PreDeployCard checks={preChecks} />}
@@ -543,7 +660,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       </div>
 
       {/* ── Right: Config Panel ─────────────────────────────────────────── */}
-      <RightPanel config={config} agentLog={agentLog} readiness={readiness} />
+      <RightPanel config={config} agentLog={agentLog} readiness={readiness} predictiveInsight={predictiveInsight} />
     </motion.div>
   );
 }
@@ -721,6 +838,148 @@ function IntegrationMapCard() {
   );
 }
 
+// ── Predictive Risk Card ──────────────────────────────────────────────────────
+
+function PredictiveRiskCard({ insight, onContinue, disabled }: { insight: PredictiveInsight; onContinue: () => void; disabled: boolean }) {
+  const riskColor = insight.score >= 75 ? "text-red-400" : insight.score >= 50 ? "text-amber-400" : "text-emerald-400";
+  const riskRing  = insight.score >= 75 ? "#f87171" : insight.score >= 50 ? "#fbbf24" : "#34d399";
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-lg border border-violet-500/25 bg-violet-500/5 overflow-hidden">
+      <div className="px-3 py-2 border-b border-violet-500/15 flex items-center gap-2">
+        <Sparkles className="h-3 w-3 text-violet-400" />
+        <span className="text-[10px] font-semibold text-white">Predictive Risk Intelligence</span>
+        <span className="ml-auto text-[9px] text-violet-300/70">{insight.confidence}% confidence</span>
+      </div>
+
+      <div className="p-3 flex gap-3">
+        {/* Score ring */}
+        <div className="relative h-16 w-16 shrink-0">
+          <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
+            <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
+            <motion.circle
+              cx="18" cy="18" r="15.5" fill="none" stroke={riskRing} strokeWidth="3" strokeLinecap="round"
+              strokeDasharray={2 * Math.PI * 15.5}
+              initial={{ strokeDashoffset: 2 * Math.PI * 15.5 }}
+              animate={{ strokeDashoffset: 2 * Math.PI * 15.5 * (1 - insight.score / 100) }}
+              transition={{ duration: 0.8, ease: "easeOut" }}
+            />
+          </svg>
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className={cn("text-sm font-bold", riskColor)}>{insight.score}</span>
+            <span className="text-[7px] text-white/30">RISK</span>
+          </div>
+        </div>
+
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-3 w-3 text-violet-400 shrink-0" />
+            <p className="text-[10px] text-white/70">
+              Predicted annual fraud exposure: <span className="font-bold text-white">{insight.exposure}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Gauge className="h-3 w-3 text-violet-400 shrink-0" />
+            <p className="text-[10px] text-white/70">
+              Riskier than <span className="font-bold text-white">{insight.percentile}%</span> of similar shippers
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Radar className="h-3 w-3 text-emerald-400 shrink-0" />
+            <p className="text-[10px] text-white/70">
+              FraudWatch projected to prevent <span className="font-bold text-emerald-300">{insight.incidentsPreventedPerYear} incidents/yr</span> · ROI <span className="font-bold text-emerald-300">{insight.roiEstimate}</span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-3 pb-2">
+        <p className="text-[9px] uppercase tracking-widest text-violet-300/60 mb-1.5">Top predicted risk vectors</p>
+        <div className="space-y-1">
+          {insight.vectors.map((v, i) => (
+            <div key={i} className="flex items-start gap-2 rounded-md bg-white/4 px-2 py-1.5">
+              <span className="text-[9px] font-bold text-violet-400 shrink-0 mt-0.5">{i + 1}</span>
+              <p className="text-[10px] text-white/65 leading-relaxed">{v}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="px-3 pb-3 pt-1">
+        <button onClick={onContinue} disabled={disabled}
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-500/20 border border-violet-500/40 text-violet-200 text-[11px] font-semibold hover:bg-violet-500/30 transition-colors disabled:opacity-50">
+          Begin System Discovery <ArrowRight className="h-3 w-3" />
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Driver Roster Card ────────────────────────────────────────────────────────
+
+const BG_CHECK_STYLES: Record<DriverProfile["backgroundCheck"], string> = {
+  clear:   "text-emerald-300 border-emerald-500/30 bg-emerald-500/10",
+  pending: "text-amber-300 border-amber-500/30 bg-amber-500/10",
+  flagged: "text-red-300 border-red-500/30 bg-red-500/10",
+};
+
+function DriverRosterCard({ drivers }: { drivers: DriverProfile[] }) {
+  const flagged = drivers.filter(d => d.gsocMatch).length;
+  return (
+    <div className="rounded-lg border border-[var(--mil-border)] bg-[var(--mil-surface)] overflow-hidden">
+      <div className="px-3 py-2 border-b border-[var(--mil-border)] flex items-center gap-2">
+        <IdCard className="h-3 w-3 text-[#00c2b2]" />
+        <span className="text-[10px] font-semibold text-white">Driver Verification</span>
+        <span className="ml-auto text-[9px] text-[var(--mil-muted)]">sample 5 of 347 discovered</span>
+      </div>
+
+      {flagged > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/8 border-b border-red-500/15">
+          <BadgeAlert className="h-3 w-3 text-red-400 shrink-0" />
+          <p className="text-[9px] text-red-300">{flagged} driver{flagged > 1 ? "s" : ""} matched the GSOC watchlist — hold recommended</p>
+        </div>
+      )}
+
+      {drivers.map(d => (
+        <div key={d.id} className="px-3 py-2 border-b border-[var(--mil-border)] last:border-0">
+          <div className="flex items-center gap-2.5">
+            <div className={cn(
+              "h-7 w-7 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0",
+              d.gsocMatch ? "bg-red-500/20 text-red-300 border border-red-500/40" : "bg-[#00c2b2]/15 text-[#00c2b2] border border-[#00c2b2]/30"
+            )}>
+              {d.name.split(" ").map(p => p[0]).join("")}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-medium text-white truncate">{d.name}</p>
+                <span className={cn("text-[7px] font-bold px-1 py-0.5 rounded border uppercase shrink-0", BG_CHECK_STYLES[d.backgroundCheck])}>
+                  {d.backgroundCheck}
+                </span>
+              </div>
+              <p className="text-[9px] text-[var(--mil-muted)]">CDL {d.cdl} · {d.yearsExperience} yr{d.yearsExperience !== 1 ? "s" : ""} exp · {d.lastActive}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1" title="Safety score">
+                <Gauge className={cn("h-3 w-3", d.safetyScore >= 85 ? "text-emerald-400" : d.safetyScore >= 70 ? "text-amber-400" : "text-red-400")} />
+                <span className="text-[9px] font-bold text-white/70">{d.safetyScore}</span>
+              </div>
+              <Fingerprint className={cn("h-3 w-3", d.biometricVerified ? "text-emerald-400" : "text-white/15")} />
+              <Phone className={cn("h-3 w-3", d.phoneVerified ? "text-emerald-400" : "text-white/15")} />
+            </div>
+          </div>
+          {d.gsocMatch && (
+            <div className="mt-1.5 ml-10 flex items-start gap-1.5 rounded-md bg-red-500/8 px-2 py-1">
+              <AlertTriangle className="h-2.5 w-2.5 text-red-400 shrink-0 mt-0.5" />
+              <p className="text-[9px] text-red-300 leading-relaxed">{d.gsocMatch}</p>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ── Fraud Rules Card ──────────────────────────────────────────────────────────
 
 function FraudRulesCard({ rules }: { rules: FraudRule[] }) {
@@ -825,14 +1084,35 @@ function GoLiveCard() {
 
 // ── Right Panel ───────────────────────────────────────────────────────────────
 
-function RightPanel({ config, agentLog, readiness }: {
+function RightPanel({ config, agentLog, readiness, predictiveInsight }: {
   config: ConfigCard[];
   agentLog: AgentLogEntry[];
   readiness: number;
+  predictiveInsight: PredictiveInsight | null;
 }) {
   return (
     <div className="w-64 shrink-0 flex flex-col overflow-hidden" style={{ background: "var(--mil-panel)" }}>
       <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4">
+
+        {predictiveInsight && (
+          <div className="rounded-lg border border-violet-500/25 bg-violet-500/5 px-3 py-2.5">
+            <div className="flex items-center gap-1.5 mb-2">
+              <Sparkles className="h-3 w-3 text-violet-400" />
+              <p className="text-[8px] uppercase tracking-widest text-violet-300/70">Predictive Insights</p>
+            </div>
+            <div className="grid grid-cols-2 gap-1.5">
+              <div className="bg-white/4 rounded px-2 py-1.5">
+                <p className="text-sm font-bold text-white">{predictiveInsight.score}</p>
+                <p className="text-[7px] text-white/40">Risk score</p>
+              </div>
+              <div className="bg-white/4 rounded px-2 py-1.5">
+                <p className="text-sm font-bold text-emerald-300">{predictiveInsight.incidentsPreventedPerYear}</p>
+                <p className="text-[7px] text-white/40">Incidents/yr prevented</p>
+              </div>
+            </div>
+            <p className="text-[9px] text-violet-200/70 mt-1.5">Est. ROI <span className="font-bold text-violet-100">{predictiveInsight.roiEstimate}</span>/yr</p>
+          </div>
+        )}
 
         <div>
           <p className="text-[8px] uppercase tracking-widest text-[var(--mil-muted)] mb-2">Configuration Modules</p>
