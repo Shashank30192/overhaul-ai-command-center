@@ -761,60 +761,43 @@ export function CaseDetailScreen({ interaction }: ScreenProps) {
     <div className="h-full flex flex-col" style={{ background: "#0d0f10" }}>
       <TopNav activePage="Risk Monitor" interaction={interaction} />
 
-      {/* Case header */}
-      <div className="px-4 py-3 border-b shrink-0" style={{ background: "#111416", borderColor: "rgba(255,255,255,0.07)" }}>
-        <div className="flex items-center justify-between mb-2">
-          <div>
-            <p className="text-sm font-bold text-white">Light &amp; Stop (Compound) — OH-84764</p>
-            <p className="text-xs text-gray-500">São Paulo, Brazil → Chicago, USA · Weekend transit</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-2.5 py-1 rounded-full">Risk 98+</span>
-            <span className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1 rounded-full">Investigating</span>
-          </div>
+      {/* Case header — compact so sidebar actions stay in view */}
+      <div className="px-4 py-1.5 border-b shrink-0 flex items-center justify-between" style={{ background: "#111416", borderColor: "rgba(255,255,255,0.07)" }}>
+        <div className="min-w-0">
+          <p className="text-xs font-bold text-white truncate">Light &amp; Stop (Compound) — OH-84764</p>
+          <p className="text-[10px] text-gray-500 truncate">São Paulo → Chicago · Weekend transit · Driver: Marcus Vinicius · Stopped 01:00 AM · Battery 92%</p>
         </div>
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { l: "Driver", v: "Marcus Vinicius", sub: "+55 11 9xxxx-xxxx" },
-            { l: "Stopped At", v: "01:00 AM", sub: "47 min elapsed" },
-            { l: "Battery", v: "92%", sub: "Device online" },
-          ].map(item => (
-            <div key={item.l} className="rounded-lg border px-3 py-2" style={{ background: "#181c1f", borderColor: "rgba(255,255,255,0.07)" }}>
-              <p className="text-[10px] uppercase text-gray-600">{item.l}</p>
-              <p className="text-xs font-semibold text-white mt-0.5">{item.v}</p>
-              <p className="text-[10px] text-gray-500">{item.sub}</p>
-            </div>
-          ))}
+        <div className="flex items-center gap-2 shrink-0 ml-3">
+          <span className="text-[10px] font-bold text-red-400 bg-red-500/15 border border-red-500/30 px-2 py-0.5 rounded-full">Risk 98+</span>
+          <span className="text-[10px] text-amber-300 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded-full">Investigating</span>
         </div>
       </div>
 
       <div className="flex flex-1 min-h-0">
         {/* Left: Timeline + actions */}
-        <div className="w-[260px] shrink-0 border-r flex flex-col" style={{ background: "#111416", borderColor: "rgba(255,255,255,0.07)" }}>
-          <div className="p-3 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
-            <p className="text-xs font-semibold text-white mb-2">Event Timeline</p>
+        <div className="w-[260px] shrink-0 border-r flex flex-col min-h-0" style={{ background: "#111416", borderColor: "rgba(255,255,255,0.07)" }}>
+          <div className="p-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.06)" }}>
+            <p className="text-xs font-semibold text-white mb-1.5">Event Timeline</p>
             {[
               { evt: "Vehicle stopped", t: "01:00 AM", col: "text-red-400", dot: "bg-red-500" },
               { evt: "No check-in ping", t: "01:22 AM", col: "text-amber-400", dot: "bg-amber-400" },
               { evt: "Alert triggered", t: "01:47 AM", col: "text-red-400", dot: "bg-red-500" },
               { evt: "Investigator assigned", t: "01:50 AM", col: "text-blue-400", dot: "bg-blue-400" },
             ].map((e, i) => (
-              <div key={i} className={cn("flex items-start gap-2 rounded-lg px-2 py-2 mb-1 border transition-colors",
+              <div key={i} className={cn("flex items-center gap-2 rounded-lg px-2 py-0.5 mb-0.5 border transition-colors",
                 readingTimeline ? "border-blue-400/25 bg-[#1e3a5f]/15" : "border-transparent"
               )}>
-                <span className={cn("h-2 w-2 rounded-full mt-1 shrink-0", e.dot)} />
-                <div className="flex-1">
-                  <p className={cn("text-[11px] font-medium", e.col)}>{e.evt}</p>
-                  <p className="text-[10px] text-gray-600">{e.t}</p>
-                </div>
+                <span className={cn("h-2 w-2 rounded-full shrink-0", e.dot)} />
+                <p className={cn("text-[11px] font-medium flex-1", e.col)}>{e.evt}</p>
+                <p className="text-[10px] text-gray-600">{e.t}</p>
               </div>
             ))}
           </div>
           {/* Actions */}
-          <div className="p-3 space-y-2">
-            <p className="text-xs font-semibold text-white mb-2">GSOC Actions</p>
+          <div className="p-2.5 space-y-1.5">
+            <p className="text-xs font-semibold text-white mb-1.5">GSOC Actions</p>
             <button className={cn(
-              "w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg border text-sm font-semibold transition-all",
+              "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border text-sm font-semibold transition-all",
               callingDriver
                 ? "border-emerald-400 bg-emerald-500/15 text-emerald-300 scale-98"
                 : "border-emerald-500/40 bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/15"
@@ -822,14 +805,14 @@ export function CaseDetailScreen({ interaction }: ScreenProps) {
               <Phone className={cn("h-4 w-4 shrink-0", callingDriver && "animate-pulse")} />
               {callingDriver ? "Calling Driver…" : "Call Driver"}
             </button>
-            <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-blue-500/30 text-xs text-blue-400 hover:bg-blue-500/10 transition-colors">
+            <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-blue-500/30 text-xs text-blue-400 hover:bg-blue-500/10 transition-colors">
               <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
               Contact Carrier Dispatch
             </button>
-            <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-white/8 text-xs text-gray-500 hover:bg-white/5 transition-colors">
+            <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-white/8 text-xs text-gray-500 hover:bg-white/5 transition-colors">
               Waive Event
             </button>
-            <button className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg border border-red-500/30 text-xs text-red-400 hover:bg-red-500/10 transition-colors">
+            <button className="w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-red-500/30 text-xs text-red-400 hover:bg-red-500/10 transition-colors">
               Escalate to Police
             </button>
           </div>
@@ -1102,25 +1085,27 @@ export type Hotspot = { x: number; y: number; label: string };
 // include the shipment IDs, risk-factor phrases, and action verbs the
 // workflow targetLabels use, so findBestHotspot resolves every action.
 export const SCREEN_HOTSPOTS: Partial<Record<ScreenId, Hotspot[]>> = {
+  // Coordinates are fallbacks — the AgentViewport resolves each label
+  // against the live DOM and aims the cursor at the element's true position.
   "home": [
-    { x: 44, y: 8, label: "Risk Monitor nav link" },
-    { x: 53, y: 8, label: "Fraud Watch nav link" },
-    { x: 60, y: 8, label: "Digital Twin nav link" },
+    { x: 30, y: 4, label: "Risk Monitor nav link" },
+    { x: 39, y: 4, label: "Fraud Watch nav link" },
+    { x: 48, y: 4, label: "Digital Twin nav link" },
   ],
   "risk-monitor": [
     // Sidebar elements (x < 28%)
-    { x: 14, y: 18, label: "Search alerts box — OH ID search" },
-    { x: 14, y: 38, label: "Light & Stop (Compound) risk pill — shipment OH-84764 weekend transit vulnerability alert" },
-    { x: 14, y: 43, label: "Light alert risk pill" },
-    { x: 14, y: 62, label: "11:29 timeline event" },               // timeline ~y:58-80%
-    { x: 14, y: 68, label: "11:17 timeline event" },
+    { x: 13, y: 22, label: "Search alerts box — OH ID search" },
+    { x: 12, y: 41, label: "Light & Stop (Compound) risk pill — shipment OH-84764 weekend transit vulnerability alert" },
+    { x: 12, y: 49, label: "Light alert risk pill" },
+    { x: 13, y: 89, label: "11:29 timeline event" },
+    { x: 13, y: 93, label: "11:17 timeline event" },
     // Map elements
-    { x: 65, y: 55, label: "Truck — current position" },           // truck at ~38%,55% of SVG = map area
-    { x: 35, y: 77, label: "RiskGPT Notes tab" },                  // floating panel bottom-left
-    { x: 43, y: 77, label: "Chat with RiskGPT tab" },
-    { x: 32, y: 87, label: "Analyze Light & Stop compound case OH-84764 — RiskGPT chat input" },
-    { x: 32, y: 90, label: "RiskGPT analysis — 98% risk score, 97% theft probability" },
-    { x: 85, y: 16, label: "GSOC Response button" },
+    { x: 65, y: 50, label: "Truck — current position" },
+    { x: 33, y: 65, label: "RiskGPT Notes tab" },                  // floating panel bottom-left
+    { x: 40, y: 65, label: "Chat with RiskGPT tab" },
+    { x: 40, y: 80, label: "Analyze Light & Stop compound case OH-84764 — RiskGPT chat input" },
+    { x: 40, y: 84, label: "RiskGPT analysis — 98% risk score, 97% theft probability" },
+    { x: 83, y: 12, label: "GSOC Response button" },
   ],
   "shipment-detail": [
     { x: 15, y: 38, label: "Shipment status & active alerts — risk factors panel" },
@@ -1164,21 +1149,21 @@ export const SCREEN_HOTSPOTS: Partial<Record<ScreenId, Hotspot[]>> = {
   ],
   "case-detail": [
     // Header
-    { x: 50, y: 13, label: "Case header — open full case Light & Stop compound" },
+    { x: 50, y: 12, label: "Case header — open full case Light & Stop compound" },
     // Sidebar (x < 26%)
-    { x: 13, y: 34, label: "Case event timeline — stopped 47 min São Paulo" },
-    { x: 13, y: 42, label: "No check-in ping" },
-    { x: 13, y: 60, label: "Call Driver button" },
-    { x: 13, y: 68, label: "Contact Carrier Dispatch" },
+    { x: 13, y: 28, label: "Case event timeline — stopped 47 min São Paulo" },
+    { x: 13, y: 34, label: "No check-in ping" },
+    { x: 13, y: 62, label: "Call Driver button" },
+    { x: 13, y: 71, label: "Contact Carrier Dispatch" },
     // Map
-    { x: 65, y: 40, label: "Stopped truck marker" },
+    { x: 55, y: 45, label: "Stopped truck marker" },
     // RiskGPT panel
-    { x: 65, y: 88, label: "RiskGPT analysis" },
+    { x: 62, y: 83, label: "RiskGPT analysis" },
   ],
   "driver-call": [
-    { x: 50, y: 25, label: "Calling Marcus Vinicius — ringing" },
-    { x: 50, y: 50, label: "Driver confirms routine fuel stop" },
-    { x: 42, y: 75, label: "End call — mark stop as explained" },
+    { x: 50, y: 40, label: "Calling Marcus Vinicius — ringing" },
+    { x: 50, y: 58, label: "Driver confirms routine fuel stop" },
+    { x: 46, y: 75, label: "End call — mark stop as explained" },
   ],
   "case-notes": [
     { x: 60, y: 38, label: "Investigation notes field" },

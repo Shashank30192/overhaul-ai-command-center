@@ -353,15 +353,17 @@ function findBestHotspot(screenId: ScreenId, targetLabel: string, fallbackIdx: n
 
 // Every screen renders the same TopNav, so navigate actions always click at
 // these positions on the CURRENT screen before the new screen loads.
+// Fallback coordinates measured from the rendered TopNav; the viewport's
+// DOM locator resolves the exact position at runtime from the label.
 const NAV_POSITIONS: Record<string, Hotspot> = {
-  "risk monitor": { x: 44, y: 8, label: "Risk Monitor nav link" },
-  "fraud watch":  { x: 53, y: 8, label: "Fraud Watch nav link" },
-  "digital twin": { x: 60, y: 8, label: "Digital Twin nav link" },
+  "risk monitor": { x: 30, y: 4, label: "Risk Monitor nav link" },
+  "fraud watch":  { x: 39, y: 4, label: "Fraud Watch nav link" },
+  "digital twin": { x: 48, y: 4, label: "Digital Twin nav link" },
 };
 
 function navHotspotFor(targetLabel: string): Hotspot {
   const key = Object.keys(NAV_POSITIONS).find((k) => targetLabel.toLowerCase().includes(k));
-  return key ? NAV_POSITIONS[key] : { x: 50, y: 8, label: `${targetLabel} nav link` };
+  return key ? NAV_POSITIONS[key] : { x: 40, y: 4, label: `${targetLabel} nav link` };
 }
 
 // ─── Evidence artifacts ────────────────────────────────────────────────────────

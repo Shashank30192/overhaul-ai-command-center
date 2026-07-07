@@ -18,6 +18,44 @@ interface ViewportProps {
   isIdle: boolean;
 }
 
+// Words that describe the element kind, not its identity — ignored when
+// matching a hotspot label against on-screen text
+const LOCATOR_STOPWORDS = new Set([
+  "the", "and", "with", "for", "nav", "link", "tab", "button", "field",
+  "panel", "box", "pill", "marker", "row", "header",
+]);
+
+// Locate the actual rendered element for a hotspot label inside the live
+// screen DOM. Returns its center as a % of the viewport, or null if the
+// element isn't on screen — the caller falls back to static coordinates.
+function locateElement(container: HTMLElement, screenRoot: HTMLElement, label: string): { x: number; y: number } | null {
+  const tokens = label.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3 && !LOCATOR_STOPWORDS.has(w));
+  if (tokens.length === 0) return null;
+  const cr = container.getBoundingClientRect();
+  if (cr.width === 0 || cr.height === 0) return null;
+
+  let best: { el: Element; score: number; len: number } | null = null;
+  for (const el of Array.from(screenRoot.querySelectorAll("*"))) {
+    if (el.childElementCount > 3) continue;
+    const text = (el.textContent ?? "").trim().toLowerCase();
+    if (!text || text.length > 90) continue;
+    let score = 0;
+    for (const tok of tokens) if (text.includes(tok)) score++;
+    if (score === 0) continue;
+    if (!best || score > best.score || (score === best.score && text.length < best.len)) {
+      best = { el, score, len: text.length };
+    }
+  }
+  if (!best) return null;
+
+  const r = best.el.getBoundingClientRect();
+  if (r.width === 0 && r.height === 0) return null;
+  const x = ((r.left + r.width / 2 - cr.left) / cr.width) * 100;
+  const y = ((r.top + r.height / 2 - cr.top) / cr.height) * 100;
+  if (y < -5 || y > 110 || x < -5 || x > 110) return null; // clipped off-screen
+  return { x: Math.min(Math.max(x, 2), 97), y: Math.min(Math.max(y, 4), 94) };
+}
+
 function CursorRipple({ x, y }: { x: number; y: number }) {
   return (
     <motion.div
@@ -46,18 +84,41 @@ export function AgentViewport({
   const [clickRipples, setClickRipples] = useState<{ id: number; x: number; y: number }[]>([]);
   const rippleId = useRef(0);
 
+  // DOM-resolved target: find the real rendered element for the hotspot label
+  // and aim the cursor at its true position. Retries cover the screen
+  // crossfade; static hotspot coords remain the fallback.
+  const [domTarget, setDomTarget] = useState<{ x: number; y: number } | null>(null);
   useEffect(() => {
-    if (isClicking && activeHotspot) {
+    setDomTarget(null);
+    if (!activeHotspot) return;
+    const timers = [120, 450, 900].map((ms) =>
+      setTimeout(() => {
+        const vp = viewportRef.current;
+        const root = vp?.querySelector("[data-screen-root]") as HTMLElement | null;
+        if (!vp || !root) return;
+        const pos = locateElement(vp, root, activeHotspot.label);
+        if (pos) setDomTarget(pos);
+      }, ms)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, [activeHotspot, currentScreen]);
+
+  // Where the cursor actually aims: live DOM position, else static hotspot
+  const target = activeHotspot ? (domTarget ?? activeHotspot) : null;
+
+  useEffect(() => {
+    if (isClicking && target) {
       const id = rippleId.current++;
-      setClickRipples((prev) => [...prev, { id, x: activeHotspot.x, y: activeHotspot.y }]);
+      setClickRipples((prev) => [...prev, { id, x: target.x, y: target.y }]);
       setTimeout(() => {
         setClickRipples((prev) => prev.filter((r) => r.id !== id));
       }, 600);
     }
-  }, [isClicking, activeHotspot]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isClicking]);
 
   const hotspots = activeHotspot ? [activeHotspot] : (SCREEN_HOTSPOTS[currentScreen] ?? []);
-  const cursorPos = activeHotspot ?? hotspots[0] ?? { x: 50, y: 50 };
+  const cursorPos = target ?? hotspots[0] ?? { x: 50, y: 50 };
 
   // Derive the action kind from the label verb so typing/reading get
   // distinct visual treatments at the hotspot
@@ -109,6 +170,7 @@ export function AgentViewport({
         <AnimatePresence mode="wait">
           <motion.div
             key={currentScreen}
+            data-screen-root
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -130,17 +192,18 @@ export function AgentViewport({
         )}
 
         {/* Targeting dot — shows where cursor is headed */}
-        {!isIdle && activeHotspot && (
+        {!isIdle && target && (
           <motion.div
             className="absolute pointer-events-none z-20"
-            style={{
-              left: `${activeHotspot.x}%`,
-              top: `${activeHotspot.y}%`,
-              transform: "translate(-50%, -50%)",
+            animate={{
+              left: `${target.x}%`,
+              top: `${target.y}%`,
+              opacity: 1,
             }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
+            style={{ transform: "translate(-50%, -50%)" }}
+            initial={{ left: `${target.x}%`, top: `${target.y}%`, opacity: 0 }}
             exit={{ opacity: 0 }}
+            transition={{ type: "spring", stiffness: 200, damping: 24 }}
           >
             {actionKind === "read" ? (
               /* Reading — amber scanning box sweeping over the element */
@@ -219,13 +282,13 @@ export function AgentViewport({
         )}
 
         {/* Click pulse rings */}
-        {!isIdle && isClicking && activeHotspot && (
+        {!isIdle && isClicking && target && (
           <>
             <motion.div
               className="absolute pointer-events-none z-20 rounded-full border-2 border-blue-400"
               style={{
-                left: `${activeHotspot.x}%`,
-                top: `${activeHotspot.y}%`,
+                left: `${target.x}%`,
+                top: `${target.y}%`,
                 width: 20,
                 height: 20,
                 transform: "translate(-50%, -50%)",
@@ -237,8 +300,8 @@ export function AgentViewport({
             <motion.div
               className="absolute pointer-events-none z-20 rounded-full border border-white/60"
               style={{
-                left: `${activeHotspot.x}%`,
-                top: `${activeHotspot.y}%`,
+                left: `${target.x}%`,
+                top: `${target.y}%`,
                 width: 14,
                 height: 14,
                 transform: "translate(-50%, -50%)",
