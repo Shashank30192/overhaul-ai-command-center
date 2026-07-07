@@ -37,7 +37,7 @@ export default function FraudPage() {
           <Bot className="h-4 w-4 text-[#00c2b2]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-white">Stop fraud before it starts — onboard carriers with Tony</p>
+          <p className="text-sm font-medium text-white">Stop fraud before it starts — onboard carriers with Sherlock</p>
           <p className="text-xs text-zinc-400">Drag a carrier into FraudWatch and the AI specialist deploys tailored fraud rules in minutes.</p>
         </div>
         <ArrowRight className="h-4 w-4 text-[#00c2b2] group-hover:translate-x-0.5 transition-transform shrink-0" />

@@ -18,7 +18,7 @@ import { demoData } from "@/lib/data";
 
 const AGENT_EVENTS = [
   { agent: "Resolution Agent", action: "investigated Light & Stop on OH-84764 — driver reached, stop explained", tone: "text-emerald-300" },
-  { agent: "Tony · FraudWatch", action: "onboarded Globex Transportation — 6 fraud rules deployed", tone: "text-[#00c2b2]" },
+  { agent: "Sherlock · FraudWatch", action: "onboarded Globex Transportation — 6 fraud rules deployed", tone: "text-[#00c2b2]" },
   { agent: "RiskGPT", action: "flagged 97% theft probability — weekend transit + route deviation", tone: "text-red-300" },
   { agent: "GSOC Analysis Agent", action: "determined false indicator — alert closed, zero analyst minutes", tone: "text-blue-300" },
   { agent: "Orchestrator", action: "chained 3 sub-agents to verify carrier MC-294817 in 41s", tone: "text-purple-300" },
@@ -70,10 +70,10 @@ const AGENT_WORKFORCE = [
   },
   {
     icon: UserCheck,
-    name: "Tony — FraudWatch Specialist",
+    name: "Sherlock — FraudWatch Specialist",
     tag: "Agentic Onboarding",
     accent: "teal",
-    desc: "Drag a carrier onto Tony and he runs a 6-stage onboarding: discovers your TMS/ERP/EDI stack, generates fraud rules, validates, and deploys — conversationally.",
+    desc: "Drag a carrier onto Sherlock and he runs a 6-stage onboarding: discovers your TMS/ERP/EDI stack, generates fraud rules, validates, and deploys — conversationally.",
     bullets: ["Drag-and-drop carrier onboarding", "Auto-discovers SAP, EDI & carrier APIs", "Deploys 6 fraud rules with confidence scores"],
     href: "/fraud-watch",
     cta: "Onboard a carrier",
@@ -121,7 +121,7 @@ const LOOP_STEPS = [
 
 const PLATFORM_FEATURES = [
   { icon: Cpu,        title: "ACE — Agentic Customer Experience", desc: "Ask AI, Gen AI assistant, and the autonomous Resolution Agent in one command center", href: "/self-service", flagship: true },
-  { icon: Lock,       title: "Fraud Watch", desc: "Carrier risk dashboard with drag-and-drop AI onboarding by Tony", href: "/fraud-watch", flagship: true },
+  { icon: Lock,       title: "Fraud Watch", desc: "Carrier risk dashboard with drag-and-drop AI onboarding by Sherlock", href: "/fraud-watch", flagship: true },
   { icon: Eye,        title: "Risk Monitor", desc: "Real-time heatmaps, predictive scoring, and embedded RiskGPT", href: "/risk", flagship: true },
   { icon: Activity,   title: "Inventory Federation", desc: "Enterprise AI operations — API health, AI command, auto-healing integrations, and the multi-agent workflow orchestrator", href: "/control-tower", flagship: false },
   { icon: Bot,        title: "AI Copilot", desc: "Natural-language access to your entire supply chain network", href: "/copilot", flagship: false },

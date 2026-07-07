@@ -621,7 +621,7 @@ export function CarrierRiskDashboard() {
                   <Bot className="h-7 w-7 text-[#00c2b2]" />
                 </div>
                 <p className="text-sm font-semibold text-[#00c2b2]">Drop to start AI onboarding</p>
-                <p className="text-xs text-[#00c2b2]/60">Tony will onboard this carrier automatically</p>
+                <p className="text-xs text-[#00c2b2]/60">Sherlock will onboard this carrier automatically</p>
               </div>
             </motion.div>
           )}
@@ -629,7 +629,7 @@ export function CarrierRiskDashboard() {
 
         {/* AI Onboarding Panel — overlays the carrier detail.
             Keyed by the dropped carrier so dragging a NEW carrier onto an
-            already-open session remounts Tony fresh instead of leaving him
+            already-open session remounts Sherlock fresh instead of leaving him
             mid-conversation with the old company. */}
         <AnimatePresence>
           {showOnboarding && (

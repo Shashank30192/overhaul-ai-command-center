@@ -9,13 +9,14 @@ import {
   Fingerprint, Phone, IdCard, Gauge, ArrowRight, BadgeAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SherlockAvatar, sherlockStateFrom } from "./sherlock-avatar";
 
 // ── Glassmorphism + "live system" visual primitives ───────────────────────────
 // Shared material treatments: frosted backgrounds swap flat fills for
 // translucent + backdrop-blur so the ambient node-graph and busy dashboard
 // behind this panel bleed through faintly, plus a soft accent-colored glow
 // instead of a hard border. Numeric/technical readouts get font-mono
-// elsewhere in this file to read as "system data" vs. Tony's dialogue.
+// elsewhere in this file to read as "system data" vs. Sherlock's dialogue.
 
 const GLASS_NEUTRAL = "backdrop-blur-md border border-white/10 shadow-[0_0_22px_-12px_rgba(0,194,178,0.18)]";
 const GLASS_TEAL     = "backdrop-blur-md border border-[#00c2b2]/20 shadow-[0_0_26px_-10px_rgba(0,194,178,0.3)]";
@@ -38,7 +39,7 @@ function CountUp({ value, duration = 0.8, className, suffix = "" }: { value: num
 }
 
 // One-time top-to-bottom gradient sweep — plays once on mount, ties into
-// Tony's "before I scan your systems" line on the Predictive Risk card.
+// Sherlock's "before I scan your systems" line on the Predictive Risk card.
 function ScanLine() {
   return (
     <motion.div
@@ -172,6 +173,19 @@ const STAGES_META = [
   { n: 6, label: "Deployment" },
 ];
 
+// What Sherlock is focused on right now, surfaced as a small context chip
+// above his line — the lightweight version of a "dynamic workspace" that
+// doesn't require inventing a topic-detection layer: the current stage
+// already tells us exactly what he's looking at.
+const STAGE_FOCUS: Record<number, string> = {
+  1: "Business Profile",
+  2: "Enterprise Systems — TMS · ERP · EDI",
+  3: "System Integrations",
+  4: "Fraud Rules & Driver Verification",
+  5: "Deployment Readiness",
+  6: "Live Monitoring",
+};
+
 const INITIAL_CONFIG: ConfigCard[] = [
   { id: "carrier_validation",    label: "Carrier Validation",      icon: ShieldCheck,   status: "pending" },
   { id: "driver_verification",   label: "Driver Verification",     icon: User,          status: "pending" },
@@ -192,11 +206,11 @@ const STATUS_STYLES: Record<string, { label: string; badge: string }> = {
 
 const Q_META = [
   { key: "contact",  label: "Company & Contact",   text: "What company are we onboarding today, and who am I speaking with?",              freeText: true,  options: undefined },
-  { key: "cargo",    label: "Cargo Type",          text: "What types of cargo does {{company}} move?",                                     freeText: false, options: ["Dry van / general freight","Refrigerated / temp-controlled","Flatbed / oversized","Tanker / liquid bulk","Hazmat / chemicals","High-value / electronics","Pharma / healthcare"] },
-  { key: "carriers", label: "Carrier Count",       text: "How many active carriers is {{company}} working with?",                          freeText: false, options: ["1–25 carriers","26–100 carriers","101–500 carriers","500+ carriers"] },
-  { key: "geo",      label: "Geography",           text: "What regions does {{company}} operate in?",                                      freeText: false, options: ["US domestic only","US + Canada / Mexico","North America + Europe","Global operations"] },
-  { key: "fraud",    label: "Fraud History",       text: "Has {{company}} experienced cargo fraud or theft in the last 12 months?",        freeText: false, options: ["Yes — multiple incidents","Yes — one or two","Minor attempts only","No incidents (that we know of)","Not sure"] },
-  { key: "verify",   label: "Current Verification",text: "How does {{company}} currently verify carriers before they move freight?",        freeText: false, options: ["Manual paperwork / email","Carrier portal (self-service)","FMCSA lookup only","Third-party vetting service","No formal process"] },
+  { key: "cargo",    label: "Cargo Type",          text: "What types of cargo does {{company}} move? This tells me which fraud patterns to weight — high-value freight and cold chain draw very different risks.", freeText: false, options: ["Dry van / general freight","Refrigerated / temp-controlled","Flatbed / oversized","Tanker / liquid bulk","Hazmat / chemicals","High-value / electronics","Pharma / healthcare"] },
+  { key: "carriers", label: "Carrier Count",       text: "How many active carriers is {{company}} working with? I'll use this to size the FMCSA and GSOC cross-reference I'm about to run.", freeText: false, options: ["1–25 carriers","26–100 carriers","101–500 carriers","500+ carriers"] },
+  { key: "geo",      label: "Geography",           text: "What regions does {{company}} operate in? Cross-border lanes widen the carrier identity fraud surface, so this shapes how strict I set verification.", freeText: false, options: ["US domestic only","US + Canada / Mexico","North America + Europe","Global operations"] },
+  { key: "fraud",    label: "Fraud History",       text: "Has {{company}} experienced cargo fraud or theft in the last 12 months? Nothing here disqualifies anything — it just tells me where to focus first.", freeText: false, options: ["Yes — multiple incidents","Yes — one or two","Minor attempts only","No incidents (that we know of)","Not sure"] },
+  { key: "verify",   label: "Current Verification",text: "How does {{company}} currently verify carriers before they move freight? This is usually where the gap is, so I want to see exactly what I'm replacing.", freeText: false, options: ["Manual paperwork / email","Carrier portal (self-service)","FMCSA lookup only","Third-party vetting service","No formal process"] },
 ];
 
 const FRAUD_RULES: FraudRule[] = [
@@ -286,11 +300,22 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     prefilledCarrier ? { company: prefilledCarrier } : {}
   );
   const [completedQAs,    setCompletedQAs]    = useState<{ label: string; answer: string }[]>([]);
-  const [tonyLine,        setTonyLine]        = useState(
+  const [sherlockLine,    setSherlockLine]    = useState(
     prefilledCarrier
-      ? `I'll be setting up **${prefilledCarrier}** in FraudWatch. Who am I speaking with there?`
-      : "Hey there. I'm Tony, your FraudWatch Implementation Specialist. I've onboarded over 300 freight carriers on this platform. Let's get you set up."
+      ? `I'll be setting up **${prefilledCarrier}** in FraudWatch. Before we dig in — who am I speaking with there?`
+      : "Hi there — I'm Sherlock, your FraudWatch implementation specialist. I've onboarded over 300 freight carriers, so I already know where the risk usually hides. Let's get your carrier network protected."
   );
+  const [justSpoke,       setJustSpoke]       = useState(false);
+  const speakTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sherlock's on-screen presence briefly enters "speaking" whenever his
+  // line changes, then settles back to idle — purely presentational, no
+  // effect on the underlying stage/gate state machine below.
+  useEffect(() => {
+    setJustSpoke(true);
+    if (speakTimerRef.current) clearTimeout(speakTimerRef.current);
+    speakTimerRef.current = setTimeout(() => setJustSpoke(false), 1800);
+    return () => { if (speakTimerRef.current) clearTimeout(speakTimerRef.current); };
+  }, [sherlockLine]);
   const [pipeline,        setPipeline]        = useState<PipelineItem[]>([]);
   const [gate,            setGate]            = useState<{ id: string; question: string; approved: boolean } | null>(null);
   const [showMap,         setShowMap]         = useState(false);
@@ -346,25 +371,25 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     const completedLabel = stageQ === 0 && prefilledCarrier ? "Contact Person" : qm.label;
     setCompletedQAs(prev => [...prev, { label: completedLabel, answer }]);
 
-    // Tony reaction
+    // Sherlock reacts like a consultant noting something relevant, not a form advancing
     const reaction = (() => {
-      if (stageQ === 0 && prefilledCarrier) return `Great to meet you, ${answer}! Let's get ${company} fully set up.`;
-      if (stageQ === 0) return `Good to meet you. I'll use "${company}" throughout.`;
+      if (stageQ === 0 && prefilledCarrier) return `Good to meet you, ${answer}. I'll loop you in on everything as we set up ${company}.`;
+      if (stageQ === 0) return `Good to meet you. I'll refer to "${company}" throughout — that keeps the audit trail clean on our side too.`;
       if (stageQ === 1 && (answer.includes("Pharma") || answer.includes("High-value") || answer.includes("electronics")))
-        return "High-value freight — we'll tighten your fraud rules accordingly.";
+        return "Noted — high-value freight like that draws organized theft rings, so I'll weight your fraud rules more aggressively toward identity and pickup verification.";
       if (stageQ === 4 && (answer.includes("multiple") || answer.includes("one or two")))
-        return "Fraud history tells me exactly where your gaps are.";
+        return "That history is useful, not alarming — it tells me exactly where your current process has gaps, which is what I'll close first.";
       if (stageQ === 5 && (answer.includes("No formal") || answer.includes("Manual")))
-        return "Manual vetting is where most carriers get hit. We'll fix that.";
+        return "Manual vetting is where most carriers get hit — double-brokering slips straight through email chains. That's the first thing FraudWatch will automate for you.";
       return null;
     })();
 
-    if (reaction) later(() => setTonyLine(reaction), 300);
+    if (reaction) later(() => setSherlockLine(reaction), 300);
 
     const nextQ = stageQ + 1;
     if (nextQ > 5) {
       later(() => {
-        setTonyLine(`That's everything I need from you, ${company}. Before I scan your systems, here's my predictive risk read on your operation.`);
+        setSherlockLine(`That's everything I need from you on ${company}. Before I go scan your systems, let me show you my predictive risk read — this tells us where to focus first.`);
         setPredictiveInsight(computePredictiveRisk(newCtx));
         setReadiness(14);
         setProcessing(false);
@@ -396,7 +421,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       { id: "p2-3", agent: "carrier_intelligence_agent", action: "discover_carrier_apis",status: "queued" },
     ];
     setPipeline(items);
-    setTonyLine(`Scanning ${company}'s systems. Starting with TMS.`);
+    setSherlockLine(`I'll start by looking at ${company}'s TMS — that's where I can confirm how loads are tendered and who touches them.`);
     scrollActive();
 
     const results = [
@@ -407,14 +432,14 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     ];
     const narrations = [
       null,
-      `Now hitting ${company}'s ERP — this is where carrier master data lives.`,
-      "Checking EDI. AS2 handshake in progress.",
-      "Last one — pulling carrier endpoints and running FMCSA cross-reference.",
+      `Now checking ${company}'s ERP — this is where carrier master data lives, so it's my source of truth for who's actually in your network.`,
+      "Checking your EDI feed next. AS2 handshake in progress — this tells me how status updates actually reach you.",
+      "Last one — pulling every carrier endpoint and cross-referencing each against FMCSA's live registry.",
     ];
 
     items.forEach((item, i) => {
       later(() => {
-        if (narrations[i]) setTonyLine(narrations[i]!);
+        if (narrations[i]) setSherlockLine(narrations[i]!);
         setPipeline(prev => prev.map((p, j) => j === i ? { ...p, status: "running" } : p));
         logAgent(item.agent, item.action);
         updateConfig({ carrier_validation: "analysing" });
@@ -425,7 +450,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
           setReadiness(r => Math.min(r + 4, 48));
           if (i === items.length - 1) {
             later(() => {
-              setTonyLine("Got everything I need. Here's what I found in your systems.");
+              setSherlockLine("That's everything I need from your systems — here's what I found.");
               markDone(2, "4 systems discovered · SAP TM, S/4HANA, X12 EDI, 347 carriers");
               later(() => startStage3(c), 700);
             }, 500);
@@ -439,7 +464,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
 
   const startStage3 = (c: Record<string, string>) => {
     setStage(3); setPipeline([]); setShowMap(true);
-    setTonyLine(`Before I generate your config, confirm this integration map for ${c.company || "your company"} is correct.`);
+    setSherlockLine(`Here's the integration map I found for ${c.company || "your company"}. Take a look — I want to confirm this before I generate anything downstream.`);
     setGate({ id: "gate-2", question: "Is this integration map correct?", approved: false });
     setProcessing(false); setReadiness(52); scrollActive();
   };
@@ -455,7 +480,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       { id: "p4-3", agent: "configuration_agent",     action: "package_config",   status: "queued" },
     ];
     setPipeline(items); setFraudRules(null); setDriverRoster(null);
-    setTonyLine("Validating your carrier network and generating fraud rules.");
+    setSherlockLine("Now I'll cross-check every carrier in your network against FMCSA and the GSOC watchlist, then generate fraud rules tailored to what I've learned about your operation.");
     scrollActive();
 
     const results = [
@@ -486,7 +511,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
           if (i === items.length - 1) {
             later(() => {
               const company = c.company || "your company";
-              setTonyLine(`6 fraud rules generated for ${company}. 3 GSOC-flagged carriers in your network need immediate attention. You approve, I push to config.`);
+              setSherlockLine(`I've generated 6 fraud rules for ${company}, and flagged 3 carriers already on the GSOC watchlist — those need your attention first. Approve these and I'll push them straight to config.`);
               setFraudRules(FRAUD_RULES);
               setDriverRoster(DRIVERS);
               setGate({ id: "gate-3", question: "Approve these fraud rules?", approved: false });
@@ -502,7 +527,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
 
   const startStage5 = () => {
     setStage(5); setFraudRules(null); setGate(null); setPipeline([]); setProcessing(true);
-    setTonyLine("Rules approved. Running 5 pre-deploy validation checks.");
+    setSherlockLine("Rules approved. Before anything goes live, I run 5 pre-deploy checks — this is what catches a bad config before it ever touches your carriers.");
     const checks: PreCheck[] = [
       { label: "API connectivity — TMS, ERP, EDI", done: false },
       { label: "Carrier database integrity check",  done: false },
@@ -518,7 +543,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
         setReadiness(r => Math.min(r + 4, 93));
         if (i === checks.length - 1) {
           later(() => {
-            setTonyLine("All 5 checks passed. Config is clean and ready.");
+            setSherlockLine("All 5 checks passed. Your config is clean — nothing left standing between here and a live deployment.");
             markDone(5, "All 5 validation checks passed");
             setReadiness(95);
             later(() => startStage6(), 800);
@@ -532,7 +557,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
 
   const startStage6 = () => {
     setStage(6); setPreChecks(null); setProcessing(false);
-    setTonyLine("Everything's green. The moment you confirm, I'll activate GSOC monitoring and push rules live.");
+    setSherlockLine("Everything's green. The moment you confirm, I'll activate GSOC monitoring and push these rules to production.");
     setGate({ id: "gate-4", question: "Confirm deployment and activate FraudWatch?", approved: false });
     scrollActive();
   };
@@ -566,7 +591,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
           if (i === items.length - 1) {
             later(() => {
               setIsLive(true); setReadiness(100); setProcessing(false);
-              setTonyLine(`You're live, ${ctxRef.current.company || "team"}. FraudWatch is monitoring your full carrier network. I'll be here if anything needs tuning in the first 30 days.`);
+              setSherlockLine(`You're live, ${ctxRef.current.company || "team"}. FraudWatch is watching your full carrier network now. I'll stay close for the first 30 days in case anything needs tuning.`);
               scrollActive();
               // Hold the Go-Live card on screen before collapsing to the
               // one-line summary — marking done immediately would hide the
@@ -610,14 +635,12 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
         {/* Ambient multi-agent node graph — signals the architecture beneath the UI */}
         <NodeGraphTexture />
 
-        {/* Header */}
+        {/* Header — Sherlock's presence anchors the panel rather than a chat title bar */}
         <div className="relative z-10 shrink-0 px-5 py-3 border-b border-white/10 backdrop-blur-md flex items-center gap-3" style={{ background: "rgba(17,20,22,0.55)" }}>
-          <div className="h-8 w-8 rounded-full bg-[#00c2b2] flex items-center justify-center shrink-0">
-            <span className="text-[13px] font-bold text-black">T</span>
-          </div>
+          <SherlockAvatar state={sherlockStateFrom(processing, justSpoke)} size={40} />
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-white">Tony · FraudWatch Implementation</p>
-            <p className="text-[10px] text-[var(--mil-muted)] font-mono">Agentic onboarding · Stage {stage}/6</p>
+            <p className="text-sm font-semibold text-white">Sherlock <span className="text-white/30 font-normal">· FraudWatch Implementation Specialist</span></p>
+            <p className="text-[10px] text-[var(--mil-muted)] font-mono">Stage {stage}/6 · {STAGE_FOCUS[stage]}</p>
           </div>
           <button onClick={onClose} className="h-7 w-7 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] flex items-center justify-center text-[var(--mil-muted)] hover:text-white transition-colors">
             <X className="h-3.5 w-3.5" />
@@ -701,12 +724,27 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                   {isActive && !isDone && (
                     <div ref={activeRef} className="mt-2 space-y-3">
 
-                      {/* Tony directive */}
-                      <div className="flex items-start gap-2">
-                        <div className="h-4 w-4 rounded-full bg-[#00c2b2]/15 border border-[#00c2b2]/30 flex items-center justify-center shrink-0 mt-0.5">
-                          <span className="text-[7px] font-bold text-[#00c2b2]">T</span>
+                      {/* Sherlock's conversation card — meeting notes, not a chat bubble */}
+                      <div className="flex items-start gap-2.5">
+                        <SherlockAvatar state={sherlockStateFrom(processing, justSpoke)} size={28} />
+                        <div className="flex-1 min-w-0 pt-0.5">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <span className="text-[8px] uppercase tracking-widest text-[#D4AF37]/70 font-semibold">Sherlock is reviewing</span>
+                            <span className="text-[8px] text-white/20">·</span>
+                            <span className="text-[8px] uppercase tracking-widest text-white/30">{STAGE_FOCUS[stage]}</span>
+                          </div>
+                          <AnimatePresence mode="wait">
+                            <motion.p
+                              key={sherlockLine}
+                              initial={{ opacity: 0, y: 4 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.25 }}
+                              className="text-[11px] text-[var(--mil-text)] leading-relaxed"
+                            >
+                              {sherlockLine}
+                            </motion.p>
+                          </AnimatePresence>
                         </div>
-                        <p className="text-[11px] text-[var(--mil-muted)] leading-relaxed">{tonyLine}</p>
                       </div>
 
                       {/* Stage 1 — Q&A form */}
@@ -849,11 +887,14 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
             ) : (
               <div className="space-y-1">
                 {qm.options?.map(opt => (
-                  <button key={opt} onClick={() => onAnswer(opt)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 rounded-md bg-[var(--mil-elevated)] border border-[var(--mil-border)] text-[11px] text-[var(--mil-text)] hover:text-white hover:border-[#00c2b2]/40 hover:bg-[#00c2b2]/5 transition-all text-left group">
-                    <ChevronRight className="h-3 w-3 text-[#00c2b2]/40 group-hover:text-[#00c2b2] shrink-0 transition-colors" />
+                  <motion.button key={opt} onClick={() => onAnswer(opt)}
+                    whileHover={{ x: 2 }}
+                    whileTap={{ scale: 0.99 }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-md bg-[var(--mil-elevated)] border border-[var(--mil-border)] text-[11px] text-[var(--mil-text)] hover:text-white hover:border-[#00c2b2]/40 hover:bg-[#00c2b2]/5 transition-colors text-left group">
+                    <span className="h-3 w-3 rounded-full border border-[#00c2b2]/30 group-hover:border-[#00c2b2] shrink-0 transition-colors" />
                     {opt}
-                  </button>
+                    <ChevronRight className="h-3 w-3 text-[#00c2b2]/0 group-hover:text-[#00c2b2]/60 shrink-0 transition-colors ml-auto" />
+                  </motion.button>
                 ))}
               </div>
             )}
