@@ -582,25 +582,22 @@ export function CarrierRiskDashboard() {
       </aside>
 
       {/* ── Right: Detail Panel ── */}
-      <main className="flex-1 min-w-0 bg-[var(--mil-bg)] relative overflow-hidden">
-        {/* Transparent drag-capture overlay — rendered whenever a carrier is being dragged.
-            Sits on top of all content so child elements can't swallow the drop event. */}
-        {draggingId && (
-          <div
-            className="absolute inset-0 z-50"
-            onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragOver(true); }}
-            onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
-            onDrop={(e) => {
-              e.preventDefault();
-              setIsDragOver(false);
-              setDraggingId(null);
-              const name = e.dataTransfer.getData("text/plain") || dragCarrierRef.current?.name;
-              dragCarrierRef.current = null;
-              if (name) { setDroppedCarrier(name); setShowOnboarding(true); }
-            }}
-          />
-        )}
-
+      {/* Drag handlers live directly on this always-mounted element — not on a
+          conditionally-rendered overlay — so there's no race between
+          setDraggingId's setTimeout(0) and the browser's dragover/drop events. */}
+      <main
+        className="flex-1 min-w-0 bg-[var(--mil-bg)] relative overflow-hidden"
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; setIsDragOver(true); }}
+        onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragOver(false); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          setIsDragOver(false);
+          setDraggingId(null);
+          const name = e.dataTransfer.getData("text/plain") || dragCarrierRef.current?.name;
+          dragCarrierRef.current = null;
+          if (name) { setDroppedCarrier(name); setShowOnboarding(true); }
+        }}
+      >
         <AnimatePresence mode="wait">
           <motion.div key={selected.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0 }} transition={{ duration: 0.15 }} className="h-full">
@@ -630,10 +627,14 @@ export function CarrierRiskDashboard() {
           )}
         </AnimatePresence>
 
-        {/* AI Onboarding Panel — overlays the carrier detail */}
+        {/* AI Onboarding Panel — overlays the carrier detail.
+            Keyed by the dropped carrier so dragging a NEW carrier onto an
+            already-open session remounts Tony fresh instead of leaving him
+            mid-conversation with the old company. */}
         <AnimatePresence>
           {showOnboarding && (
             <FraudWatchAIOnboarding
+              key={droppedCarrier ?? "none"}
               onClose={() => { setShowOnboarding(false); setDroppedCarrier(undefined); }}
               prefilledCarrier={droppedCarrier}
             />
