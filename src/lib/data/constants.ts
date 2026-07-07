@@ -96,7 +96,6 @@ export const NAV_LINKS = [
   { href: "/control-tower", label: "Control Tower" },
   { href: "/self-service", label: "ACE" },
   { href: "/orchestrator", label: "Orchestrator" },
-  { href: "/studio", label: "Studio" },
   { href: "/fraud-watch", label: "Fraud Watch" },
   { href: "/digital-twin", label: "Digital Twin" },
   { href: "/executive", label: "Executive" },

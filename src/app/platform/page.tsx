@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   Brain, ShieldAlert, Eye, Map, BarChart3, FileWarning,
   Activity, Cpu, ArrowUpRight, Zap, CheckCircle, GitBranch,
-  Plug, TerminalSquare,
+  TerminalSquare,
 } from "lucide-react";
 
 const APPS = [
@@ -61,25 +61,13 @@ const APPS = [
     icon: Activity,
     title: "Control Tower",
     tagline: "Enterprise AI operations hub",
-    desc: "Live shipment grid, SLA tracking, AI command center, API monitor, and embedded Ecosystem Studio in one place.",
+    desc: "Live shipment grid, SLA tracking, AI command center, and API monitor in one place.",
     href: "/control-tower",
     color: "#3b82f6",
     bg: "bg-blue-500/10",
     border: "border-blue-500/20",
     status: "live",
     badge: "847 active",
-  },
-  {
-    icon: Plug,
-    title: "Ecosystem Studio",
-    tagline: "AI-native integration platform",
-    desc: "Agents build and maintain your connectors — TMS, ERP, EDI, and carrier APIs discovered and wired automatically.",
-    href: "/studio",
-    color: "#06b6d4",
-    bg: "bg-cyan-500/10",
-    border: "border-cyan-500/20",
-    status: "live",
-    badge: "AI-native",
   },
   {
     icon: Brain,
@@ -144,7 +132,7 @@ const APPS = [
 ];
 
 const STATS = [
-  { value: "11", label: "Active Apps" },
+  { value: "10", label: "Active Apps" },
   { value: "9", label: "AI Agents Running" },
   { value: "847", label: "Shipments Live" },
   { value: "99.1%", label: "Platform Uptime" },

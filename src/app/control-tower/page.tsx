@@ -11,7 +11,6 @@ import { CTEcosystemStudio } from "@/components/control-tower/ct-ecosystem-studi
 import { CTWorkflowOrchestrator } from "@/components/control-tower/ct-workflow-orchestrator";
 import { CTShipmentDetail } from "@/components/control-tower/ct-shipment-detail";
 import { type Shipment } from "@/components/control-tower/mock-data";
-import { StudioShell } from "@/components/studio/studio-shell";
 
 function Placeholder({ title }: { title: string }) {
   return (
@@ -35,7 +34,6 @@ export default function ControlTowerPage() {
         {view === 'orders' && <Placeholder title="Orders" />}
         {view === 'integrations' && <CTIntegrations onToast={onToast} />}
         {view === 'agents' && <CTAICommand onToast={onToast} />}
-        {view === 'studio' && <StudioShell />}
         {view === 'workflow' && <CTEcosystemStudio onToast={onToast} />}
         {view === 'api-monitor' && <CTApiMonitor />}
         {view === 'analytics' && <CTAnalytics />}

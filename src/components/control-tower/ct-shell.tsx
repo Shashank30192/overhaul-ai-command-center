@@ -10,7 +10,7 @@ import {
 import { cn } from "@/lib/utils";
 import { MOCK_SYSTEMS } from "./mock-data";
 
-export type CTView = 'dashboard' | 'ai-command' | 'shipments' | 'orders' | 'integrations' | 'agents' | 'workflow' | 'api-monitor' | 'analytics' | 'settings' | 'studio' | 'orchestrator';
+export type CTView = 'dashboard' | 'ai-command' | 'shipments' | 'orders' | 'integrations' | 'agents' | 'workflow' | 'api-monitor' | 'analytics' | 'settings' | 'orchestrator';
 
 interface NavItem { id: CTView; label: string; icon: React.ComponentType<{ className?: string }>; badge?: number | string }
 
@@ -212,7 +212,7 @@ export function CTShell({ view, setView, children, toast, clearToast }: CTShellP
         </header>
 
         {/* Content */}
-        <main className={cn("flex-1 min-h-0", view === 'studio' ? "overflow-hidden" : "overflow-auto")} style={{ background: '#0d0f10' }}>
+        <main className="flex-1 min-h-0 overflow-auto" style={{ background: '#0d0f10' }}>
           {children}
         </main>
       </div>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  LayoutDashboard, Bot, ShieldAlert, Map, Plug, Building2,
+  LayoutDashboard, Bot, ShieldAlert, Map, Building2,
   GitBranch, Activity, BarChart3, Crown, Settings,
   Search, Bell, X, Zap, ChevronRight, Cpu, Globe, AlertCircle,
   CheckCircle, Wifi, Package, FileWarning, TerminalSquare
@@ -32,7 +32,6 @@ const NAV = [
       { href: "/agent", label: "Agent Center", icon: TerminalSquare },
       { href: "/orchestrator", label: "Orchestrator", icon: GitBranch },
       { href: "/control-tower", label: "Control Tower", icon: Activity },
-      { href: "/studio", label: "Ecosystem Studio", icon: Plug },
     ],
   },
   {

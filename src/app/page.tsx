@@ -5,7 +5,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { BrandLogo } from "@/components/layout/brand-logo";
 import {
-  ArrowRight, Play, Brain, Eye, Lock, Cpu, Bot, GitBranch, Plug,
+  ArrowRight, Play, Brain, Eye, Lock, Cpu, Bot, GitBranch,
   Activity, Globe, Crown, ShieldAlert, PhoneCall, UserCheck,
   Radar, ScanSearch, ShieldCheck, Network, Zap, CheckCircle2,
 } from "lucide-react";
@@ -125,7 +125,6 @@ const PLATFORM_FEATURES = [
   { icon: Eye,        title: "Risk Monitor", desc: "Real-time heatmaps, predictive scoring, and embedded RiskGPT", href: "/risk", flagship: true },
   { icon: Activity,   title: "Control Tower", desc: "Enterprise AI operations — API health, AI command, auto-healing integrations", href: "/control-tower", flagship: false },
   { icon: GitBranch,  title: "Orchestrator", desc: "Design and govern multi-agent workflows with approval gates", href: "/orchestrator", flagship: false },
-  { icon: Plug,       title: "Ecosystem Studio", desc: "AI-native integration platform — agents build your connectors", href: "/studio", flagship: false },
   { icon: Bot,        title: "AI Copilot", desc: "Natural-language access to your entire supply chain network", href: "/copilot", flagship: false },
   { icon: ShieldAlert,title: "Fraud Detection", desc: "Double brokering, fake PODs, and carrier identity fraud — caught by AI", href: "/fraud", flagship: false },
   { icon: Globe,      title: "Digital Twin", desc: "Living map of every shipment with per-lane risk simulation", href: "/digital-twin", flagship: false },
