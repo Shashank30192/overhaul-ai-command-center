@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, animate } from "framer-motion";
 import {
   X, CheckCircle2, Loader2, Zap, ChevronRight,
   Shield, ShieldCheck, Truck, User, MapPin, AlertTriangle,
@@ -9,6 +9,98 @@ import {
   Fingerprint, Phone, IdCard, Gauge, ArrowRight, BadgeAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// ── Glassmorphism + "live system" visual primitives ───────────────────────────
+// Shared material treatments: frosted backgrounds swap flat fills for
+// translucent + backdrop-blur so the ambient node-graph and busy dashboard
+// behind this panel bleed through faintly, plus a soft accent-colored glow
+// instead of a hard border. Numeric/technical readouts get font-mono
+// elsewhere in this file to read as "system data" vs. Tony's dialogue.
+
+const GLASS_NEUTRAL = "backdrop-blur-md border border-white/10 shadow-[0_0_22px_-12px_rgba(0,194,178,0.18)]";
+const GLASS_TEAL     = "backdrop-blur-md border border-[#00c2b2]/20 shadow-[0_0_26px_-10px_rgba(0,194,178,0.3)]";
+const GLASS_VIOLET   = "backdrop-blur-md border border-violet-500/25 shadow-[0_0_30px_-8px_rgba(139,92,246,0.3),0_0_46px_-14px_rgba(0,194,178,0.18)]";
+const GLASS_AMBER     = "backdrop-blur-md border border-amber-500/25 shadow-[0_0_24px_-10px_rgba(245,158,11,0.25)]";
+
+// Counts a number up from 0 to its target in sync with the ring/bar draw
+// animation rather than snapping in instantly — reinforces "live readout."
+function CountUp({ value, duration = 0.8, className, suffix = "" }: { value: number; duration?: number; className?: string; suffix?: string }) {
+  const [display, setDisplay] = useState(0);
+  useEffect(() => {
+    const controls = animate(0, value, {
+      duration,
+      ease: "easeOut",
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    });
+    return () => controls.stop();
+  }, [value, duration]);
+  return <span className={className}>{display}{suffix}</span>;
+}
+
+// One-time top-to-bottom gradient sweep — plays once on mount, ties into
+// Tony's "before I scan your systems" line on the Predictive Risk card.
+function ScanLine() {
+  return (
+    <motion.div
+      className="absolute left-0 right-0 h-16 pointer-events-none z-10"
+      style={{ background: "linear-gradient(180deg, transparent, rgba(0,194,178,0.14) 45%, rgba(139,92,246,0.16) 55%, transparent)" }}
+      initial={{ top: "-15%" }}
+      animate={{ top: "115%" }}
+      transition={{ duration: 1.3, ease: "easeInOut", delay: 0.15 }}
+    />
+  );
+}
+
+// Very low-opacity connecting-node graphic behind the discovery panel —
+// signals the underlying multi-agent architecture without being loud.
+function NodeGraphTexture() {
+  const nodes = [
+    [8, 12], [22, 28], [14, 46], [30, 58], [6, 68], [24, 82],
+    [38, 18], [46, 40], [40, 70], [58, 26], [64, 52], [56, 86],
+    [80, 16], [86, 44], [78, 66], [92, 30], [94, 78],
+  ];
+  const edges = [[0,1],[1,2],[2,3],[1,6],[3,4],[3,5],[6,7],[7,9],[7,8],[9,10],[10,11],[10,12],[12,13],[13,15],[13,14],[15,16]];
+  return (
+    <svg
+      className="absolute inset-0 h-full w-full pointer-events-none"
+      style={{ opacity: 0.05 }}
+      preserveAspectRatio="none"
+      viewBox="0 0 100 100"
+    >
+      {edges.map(([a, b], i) => (
+        <line key={i} x1={nodes[a][0]} y1={nodes[a][1]} x2={nodes[b][0]} y2={nodes[b][1]}
+          stroke="#00c2b2" strokeWidth="0.15" />
+      ))}
+      {nodes.map(([x, y], i) => (
+        <motion.circle key={i} cx={x} cy={y} r={i % 3 === 0 ? 0.7 : 0.45}
+          fill={i % 4 === 0 ? "#8b5cf6" : "#00c2b2"}
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 4 + (i % 5), repeat: Infinity, ease: "easeInOut", delay: i * 0.3 }}
+        />
+      ))}
+    </svg>
+  );
+}
+
+// Animated left-to-right severity bar for the predicted risk vectors —
+// replaces the plain numbered list with a ranked visual read.
+const VECTOR_SEVERITY = [92, 74, 58];
+const VECTOR_COLOR = ["#f87171", "#fbbf24", "#00c2b2"];
+function SeverityBar({ index }: { index: number }) {
+  const pct = VECTOR_SEVERITY[index] ?? 50;
+  const color = VECTOR_COLOR[index] ?? "#00c2b2";
+  return (
+    <div className="h-[3px] w-full rounded-full bg-white/8 overflow-hidden mt-1.5">
+      <motion.div
+        className="h-full rounded-full"
+        style={{ background: color }}
+        initial={{ width: "0%" }}
+        animate={{ width: `${pct}%` }}
+        transition={{ duration: 0.7, ease: "easeOut", delay: 0.2 + index * 0.15 }}
+      />
+    </div>
+  );
+}
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -514,16 +606,18 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       style={{ background: "var(--mil-bg)" }}
     >
       {/* ── Left: Workflow Pipeline ────────────────────────────────────── */}
-      <div className="flex flex-col flex-1 min-w-0 border-r border-[var(--mil-border)]">
+      <div className="relative flex flex-col flex-1 min-w-0 border-r border-[var(--mil-border)]">
+        {/* Ambient multi-agent node graph — signals the architecture beneath the UI */}
+        <NodeGraphTexture />
 
         {/* Header */}
-        <div className="shrink-0 px-5 py-3 border-b border-[var(--mil-border)] flex items-center gap-3" style={{ background: "var(--mil-panel)" }}>
+        <div className="relative z-10 shrink-0 px-5 py-3 border-b border-white/10 backdrop-blur-md flex items-center gap-3" style={{ background: "rgba(17,20,22,0.55)" }}>
           <div className="h-8 w-8 rounded-full bg-[#00c2b2] flex items-center justify-center shrink-0">
             <span className="text-[13px] font-bold text-black">T</span>
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-white">Tony · FraudWatch Implementation</p>
-            <p className="text-[10px] text-[var(--mil-muted)]">Agentic onboarding · Stage {stage}/6</p>
+            <p className="text-[10px] text-[var(--mil-muted)] font-mono">Agentic onboarding · Stage {stage}/6</p>
           </div>
           <button onClick={onClose} className="h-7 w-7 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] flex items-center justify-center text-[var(--mil-muted)] hover:text-white transition-colors">
             <X className="h-3.5 w-3.5" />
@@ -531,7 +625,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
         </div>
 
         {/* Pipeline */}
-        <div className="flex-1 overflow-y-auto px-5 py-5">
+        <div className="relative z-10 flex-1 overflow-y-auto px-5 py-5">
           {STAGES_META.map((s, idx) => {
             const isActive = s.n === stage;
             const isDone   = doneStages.some(d => d.n === s.n);
@@ -551,7 +645,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                   )}>
                     {isDone
                       ? <Check className="h-2.5 w-2.5 text-emerald-400" />
-                      : <span className={cn("text-[8px] font-bold", isActive ? "text-[#00c2b2]" : "text-white/20")}>{s.n}</span>}
+                      : <span className={cn("text-[8px] font-bold font-mono", isActive ? "text-[#00c2b2]" : "text-white/20")}>{s.n}</span>}
                   </div>
                   {!isLast && (
                     <div className={cn(
@@ -574,15 +668,22 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                     )}>{s.label}</span>
 
                     {isActive && (
-                      <span className={cn(
-                        "flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full border",
-                        processing
-                          ? "text-amber-300 border-amber-500/30 bg-amber-500/8"
-                          : "text-[#00c2b2] border-[#00c2b2]/30 bg-[#00c2b2]/8"
-                      )}>
+                      <motion.span
+                        animate={{
+                          boxShadow: processing
+                            ? ["0 0 0px rgba(245,158,11,0)", "0 0 10px rgba(245,158,11,0.55)", "0 0 0px rgba(245,158,11,0)"]
+                            : ["0 0 0px rgba(0,194,178,0)", "0 0 9px rgba(0,194,178,0.5)", "0 0 0px rgba(0,194,178,0)"],
+                        }}
+                        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
+                        className={cn(
+                          "flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm",
+                          processing
+                            ? "text-amber-300 border-amber-500/40 bg-amber-500/5"
+                            : "text-[#00c2b2] border-[#00c2b2]/40 bg-[#00c2b2]/5"
+                        )}>
                         {processing && <Loader2 className="h-2 w-2 animate-spin" />}
                         {processing ? "Running" : "Active"}
-                      </span>
+                      </motion.span>
                     )}
                     {isDone && (
                       <span className="text-[8px] font-bold text-emerald-400 border border-emerald-400/25 bg-emerald-400/5 px-1.5 py-0.5 rounded-full">
@@ -689,7 +790,7 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
     <div className="space-y-2">
       {/* Company confirmed banner — shown when carrier was dragged in */}
       {prefilledCarrier && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[#00c2b2]/40 bg-[#00c2b2]/8">
+        <div className={cn("flex items-center gap-2 px-3 py-2 rounded-lg", GLASS_TEAL)} style={{ background: "rgba(0,194,178,0.06)" }}>
           <div className="h-5 w-5 rounded-md bg-[#00c2b2]/20 flex items-center justify-center shrink-0">
             <Truck className="h-3 w-3 text-[#00c2b2]" />
           </div>
@@ -703,20 +804,25 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
 
       {/* Completed answers table */}
       {completedQAs.length > 0 && (
-        <div className="rounded-lg border border-[var(--mil-border)] bg-[var(--mil-surface)] divide-y divide-[var(--mil-border)] overflow-hidden">
+        <div className={cn("rounded-lg divide-y divide-white/8 overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(24,28,31,0.45)" }}>
           {completedQAs.map((qa, i) => (
             <div key={i} className="flex items-center gap-3 px-3 py-1.5">
               <span className="text-[9px] uppercase tracking-wide text-[var(--mil-muted)] w-28 shrink-0">{qa.label}</span>
-              <span className="text-[11px] text-white/75 flex-1 truncate">{qa.answer}</span>
+              <span className="text-[11px] text-white/75 flex-1 truncate font-mono">{qa.answer}</span>
               <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
             </div>
           ))}
         </div>
       )}
 
-      {/* Active question */}
+      {/* Active question — soft glow signals this is the currently-focused prompt */}
       {stageQ <= 5 && qm && (
-        <div className="rounded-lg border border-[#00c2b2]/20 bg-[#00c2b2]/4 overflow-hidden">
+        <motion.div
+          className="rounded-lg overflow-hidden border border-[#00c2b2]/25 backdrop-blur-md"
+          style={{ background: "rgba(0,194,178,0.04)" }}
+          animate={{ boxShadow: ["0 0 0px rgba(0,194,178,0)", "0 0 20px -4px rgba(0,194,178,0.35)", "0 0 0px rgba(0,194,178,0)"] }}
+          transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+        >
           <div className="px-3 py-2 border-b border-[#00c2b2]/10">
             <p className="text-[11px] font-medium text-white">
               {questionText.split("**").map((part, i) =>
@@ -752,7 +858,7 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
               </div>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
     </div>
   );
@@ -765,7 +871,7 @@ function PipelineView({ items }: { items: PipelineItem[] }) {
   const done    = items.filter(i => i.status === "done").length;
 
   return (
-    <div className="rounded-lg border border-white/8 bg-[#0a0c0d] overflow-hidden">
+    <div className={cn("rounded-lg overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(10,12,13,0.5)" }}>
       <div className="px-3 py-2 border-b border-white/5 flex items-center gap-2">
         {running > 0
           ? <div className="h-1.5 w-1.5 rounded-full bg-[#00c2b2] animate-pulse shrink-0" />
@@ -820,7 +926,7 @@ function IntegrationMapCard() {
     { name: "GSOC Watchlist", type: "Intelligence",status: "Syncing",      dot: "bg-amber-400"   },
   ];
   return (
-    <div className="rounded-lg border border-[var(--mil-border)] bg-[var(--mil-surface)] overflow-hidden">
+    <div className={cn("rounded-lg overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(24,28,31,0.45)" }}>
       <div className="px-3 py-2 border-b border-[var(--mil-border)] flex items-center gap-2">
         <Network className="h-3 w-3 text-[#00c2b2]" />
         <span className="text-[10px] font-semibold text-white">Integration Map</span>
@@ -829,9 +935,9 @@ function IntegrationMapCard() {
       {systems.map(s => (
         <div key={s.name} className="flex items-center gap-2.5 px-3 py-1.5 border-b border-[var(--mil-border)] last:border-0">
           <div className={cn("h-1.5 w-1.5 rounded-full shrink-0", s.dot)} />
-          <span className="text-[10px] text-white/75 flex-1">{s.name}</span>
-          <span className="text-[9px] text-[var(--mil-muted)] w-20 shrink-0">{s.type}</span>
-          <span className="text-[9px] text-[#00c2b2]">{s.status}</span>
+          <span className="text-[10px] text-white/75 flex-1 font-mono">{s.name}</span>
+          <span className="text-[9px] text-[var(--mil-muted)] w-20 shrink-0 font-mono">{s.type}</span>
+          <span className="text-[9px] text-[#00c2b2] font-mono">{s.status}</span>
         </div>
       ))}
     </div>
@@ -846,15 +952,21 @@ function PredictiveRiskCard({ insight, onContinue, disabled }: { insight: Predic
 
   return (
     <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-lg border border-violet-500/25 bg-violet-500/5 overflow-hidden">
-      <div className="px-3 py-2 border-b border-violet-500/15 flex items-center gap-2">
+      className={cn("relative rounded-lg overflow-hidden", GLASS_VIOLET)}
+      style={{ background: "rgba(139,92,246,0.05)" }}>
+      {/* One-time scan sweep — "before I scan your systems" */}
+      <ScanLine />
+
+      <div className="relative z-20 px-3 py-2 border-b border-violet-500/15 flex items-center gap-2">
         <Sparkles className="h-3 w-3 text-violet-400" />
         <span className="text-[10px] font-semibold text-white">Predictive Risk Intelligence</span>
-        <span className="ml-auto text-[9px] text-violet-300/70">{insight.confidence}% confidence</span>
+        <span className="ml-auto text-[9px] text-violet-300/70 font-mono">
+          <CountUp value={insight.confidence} suffix="% confidence" />
+        </span>
       </div>
 
-      <div className="p-3 flex gap-3">
-        {/* Score ring */}
+      <div className="relative z-20 p-3 flex gap-3">
+        {/* Score ring — draws in 0→score over 800ms, number counts up in sync */}
         <div className="relative h-16 w-16 shrink-0">
           <svg viewBox="0 0 36 36" className="h-16 w-16 -rotate-90">
             <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="3" />
@@ -867,7 +979,7 @@ function PredictiveRiskCard({ insight, onContinue, disabled }: { insight: Predic
             />
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className={cn("text-sm font-bold", riskColor)}>{insight.score}</span>
+            <CountUp value={insight.score} className={cn("text-sm font-bold font-mono", riskColor)} />
             <span className="text-[7px] text-white/30">RISK</span>
           </div>
         </div>
@@ -876,37 +988,37 @@ function PredictiveRiskCard({ insight, onContinue, disabled }: { insight: Predic
           <div className="flex items-center gap-2">
             <TrendingUp className="h-3 w-3 text-violet-400 shrink-0" />
             <p className="text-[10px] text-white/70">
-              Predicted annual fraud exposure: <span className="font-bold text-white">{insight.exposure}</span>
+              Predicted annual fraud exposure: <span className="font-bold text-white font-mono">{insight.exposure}</span>
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Gauge className="h-3 w-3 text-violet-400 shrink-0" />
             <p className="text-[10px] text-white/70">
-              Riskier than <span className="font-bold text-white">{insight.percentile}%</span> of similar shippers
+              Riskier than <span className="font-bold text-white font-mono"><CountUp value={insight.percentile} suffix="%" /></span> of similar shippers
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Radar className="h-3 w-3 text-emerald-400 shrink-0" />
             <p className="text-[10px] text-white/70">
-              FraudWatch projected to prevent <span className="font-bold text-emerald-300">{insight.incidentsPreventedPerYear} incidents/yr</span> · ROI <span className="font-bold text-emerald-300">{insight.roiEstimate}</span>
+              FraudWatch projected to prevent <span className="font-bold text-emerald-300 font-mono">{insight.incidentsPreventedPerYear} incidents/yr</span> · ROI <span className="font-bold text-emerald-300 font-mono">{insight.roiEstimate}</span>
             </p>
           </div>
         </div>
       </div>
 
-      <div className="px-3 pb-2">
+      <div className="relative z-20 px-3 pb-2">
         <p className="text-[9px] uppercase tracking-widest text-violet-300/60 mb-1.5">Top predicted risk vectors</p>
-        <div className="space-y-1">
+        <div className="space-y-1.5">
           {insight.vectors.map((v, i) => (
-            <div key={i} className="flex items-start gap-2 rounded-md bg-white/4 px-2 py-1.5">
-              <span className="text-[9px] font-bold text-violet-400 shrink-0 mt-0.5">{i + 1}</span>
+            <div key={i} className="rounded-md bg-white/4 px-2 py-1.5">
               <p className="text-[10px] text-white/65 leading-relaxed">{v}</p>
+              <SeverityBar index={i} />
             </div>
           ))}
         </div>
       </div>
 
-      <div className="px-3 pb-3 pt-1">
+      <div className="relative z-20 px-3 pb-3 pt-1">
         <button onClick={onContinue} disabled={disabled}
           className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg bg-violet-500/20 border border-violet-500/40 text-violet-200 text-[11px] font-semibold hover:bg-violet-500/30 transition-colors disabled:opacity-50">
           Begin System Discovery <ArrowRight className="h-3 w-3" />
@@ -927,11 +1039,11 @@ const BG_CHECK_STYLES: Record<DriverProfile["backgroundCheck"], string> = {
 function DriverRosterCard({ drivers }: { drivers: DriverProfile[] }) {
   const flagged = drivers.filter(d => d.gsocMatch).length;
   return (
-    <div className="rounded-lg border border-[var(--mil-border)] bg-[var(--mil-surface)] overflow-hidden">
+    <div className={cn("rounded-lg overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(24,28,31,0.45)" }}>
       <div className="px-3 py-2 border-b border-[var(--mil-border)] flex items-center gap-2">
         <IdCard className="h-3 w-3 text-[#00c2b2]" />
         <span className="text-[10px] font-semibold text-white">Driver Verification</span>
-        <span className="ml-auto text-[9px] text-[var(--mil-muted)]">sample 5 of 347 discovered</span>
+        <span className="ml-auto text-[9px] text-[var(--mil-muted)] font-mono">sample 5 of 347 discovered</span>
       </div>
 
       {flagged > 0 && (
@@ -957,12 +1069,12 @@ function DriverRosterCard({ drivers }: { drivers: DriverProfile[] }) {
                   {d.backgroundCheck}
                 </span>
               </div>
-              <p className="text-[9px] text-[var(--mil-muted)]">CDL {d.cdl} · {d.yearsExperience} yr{d.yearsExperience !== 1 ? "s" : ""} exp · {d.lastActive}</p>
+              <p className="text-[9px] text-[var(--mil-muted)]"><span className="font-mono">CDL {d.cdl}</span> · <span className="font-mono">{d.yearsExperience}</span> yr{d.yearsExperience !== 1 ? "s" : ""} exp · {d.lastActive}</p>
             </div>
             <div className="flex items-center gap-2 shrink-0">
               <div className="flex items-center gap-1" title="Safety score">
                 <Gauge className={cn("h-3 w-3", d.safetyScore >= 85 ? "text-emerald-400" : d.safetyScore >= 70 ? "text-amber-400" : "text-red-400")} />
-                <span className="text-[9px] font-bold text-white/70">{d.safetyScore}</span>
+                <span className="text-[9px] font-bold text-white/70 font-mono">{d.safetyScore}</span>
               </div>
               <Fingerprint className={cn("h-3 w-3", d.biometricVerified ? "text-emerald-400" : "text-white/15")} />
               <Phone className={cn("h-3 w-3", d.phoneVerified ? "text-emerald-400" : "text-white/15")} />
@@ -989,11 +1101,11 @@ function FraudRulesCard({ rules }: { rules: FraudRule[] }) {
     medium:   "text-sky-400 border-sky-500/20 bg-sky-500/5",
   };
   return (
-    <div className="rounded-lg border border-[var(--mil-border)] bg-[var(--mil-surface)] overflow-hidden">
+    <div className={cn("rounded-lg overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(24,28,31,0.45)" }}>
       <div className="px-3 py-2 border-b border-[var(--mil-border)] flex items-center gap-2">
         <Shield className="h-3 w-3 text-[#00c2b2]" />
         <span className="text-[10px] font-semibold text-white">Generated Fraud Rules</span>
-        <span className="ml-auto text-[9px] text-[var(--mil-muted)]">{rules.length} rules</span>
+        <span className="ml-auto text-[9px] text-[var(--mil-muted)] font-mono">{rules.length} rules</span>
       </div>
       {rules.map(rule => (
         <div key={rule.id} className="flex items-start gap-2.5 px-3 py-2 border-b border-[var(--mil-border)] last:border-0">
@@ -1002,7 +1114,7 @@ function FraudRulesCard({ rules }: { rules: FraudRule[] }) {
             <p className="text-[10px] font-medium text-white/85 leading-snug">{rule.name}</p>
             <p className="text-[9px] text-[var(--mil-muted)] leading-relaxed mt-0.5">{rule.description}</p>
           </div>
-          <span className="text-[9px] font-bold text-[#00c2b2] shrink-0">{rule.confidence}%</span>
+          <span className="text-[9px] font-bold text-[#00c2b2] shrink-0 font-mono">{rule.confidence}%</span>
         </div>
       ))}
     </div>
@@ -1014,11 +1126,11 @@ function FraudRulesCard({ rules }: { rules: FraudRule[] }) {
 function PreDeployCard({ checks }: { checks: PreCheck[] }) {
   const done = checks.filter(c => c.done).length;
   return (
-    <div className="rounded-lg border border-[var(--mil-border)] bg-[var(--mil-surface)] overflow-hidden">
+    <div className={cn("rounded-lg overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(24,28,31,0.45)" }}>
       <div className="px-3 py-2 border-b border-[var(--mil-border)] flex items-center gap-2">
         <Activity className="h-3 w-3 text-[#00c2b2]" />
         <span className="text-[10px] font-semibold text-white">Pre-Deploy Validation</span>
-        <span className="ml-auto text-[9px] text-[var(--mil-muted)]">{done}/{checks.length} passed</span>
+        <span className="ml-auto text-[9px] text-[var(--mil-muted)] font-mono">{done}/{checks.length} passed</span>
       </div>
       {checks.map((check, i) => (
         <div key={i} className="flex items-center gap-2.5 px-3 py-2 border-b border-[var(--mil-border)] last:border-0">
@@ -1036,7 +1148,7 @@ function PreDeployCard({ checks }: { checks: PreCheck[] }) {
 
 function GateBlock({ gate, onApprove }: { gate: { id: string; question: string; approved: boolean }; onApprove: (id: string) => void }) {
   return (
-    <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 overflow-hidden">
+    <div className={cn("rounded-lg overflow-hidden", GLASS_AMBER)} style={{ background: "rgba(245,158,11,0.05)" }}>
       <div className="flex items-center gap-2 px-3 py-2 border-b border-amber-500/15">
         <Lock className="h-3 w-3 text-amber-400 shrink-0" />
         <span className="text-[9px] font-bold text-amber-300 uppercase tracking-widest">Human Approval Required</span>
@@ -1062,7 +1174,7 @@ function GateBlock({ gate, onApprove }: { gate: { id: string; question: string; 
 function GoLiveCard() {
   return (
     <motion.div initial={{ opacity: 0, scale: 0.97 }} animate={{ opacity: 1, scale: 1 }}
-      className="rounded-lg border border-[#00c2b2]/40 bg-[#00c2b2]/8 overflow-hidden">
+      className={cn("rounded-lg overflow-hidden", GLASS_TEAL)} style={{ background: "rgba(0,194,178,0.08)" }}>
       <div className="px-4 py-4 text-center">
         <div className="h-10 w-10 rounded-full border-2 border-[#00c2b2] flex items-center justify-center mx-auto mb-2.5">
           <Check className="h-5 w-5 text-[#00c2b2]" />
@@ -1071,8 +1183,8 @@ function GoLiveCard() {
         <p className="text-[10px] text-[var(--mil-muted)] mb-3">GSOC monitoring active · All fraud rules deployed</p>
         <div className="grid grid-cols-3 gap-1.5">
           {[{ label: "Carriers", value: "347" }, { label: "Rules", value: "6" }, { label: "Status", value: "Live" }].map(item => (
-            <div key={item.label} className="bg-[var(--mil-surface)] border border-[var(--mil-border)] rounded px-2 py-2">
-              <p className="text-sm font-bold text-[#00c2b2]">{item.value}</p>
+            <div key={item.label} className="bg-white/[0.03] backdrop-blur-sm border border-white/10 rounded px-2 py-2">
+              <p className="text-sm font-bold text-[#00c2b2] font-mono">{item.value}</p>
               <p className="text-[8px] text-[var(--mil-muted)] mt-0.5">{item.label}</p>
             </div>
           ))}
@@ -1091,26 +1203,26 @@ function RightPanel({ config, agentLog, readiness, predictiveInsight }: {
   predictiveInsight: PredictiveInsight | null;
 }) {
   return (
-    <div className="w-64 shrink-0 flex flex-col overflow-hidden" style={{ background: "var(--mil-panel)" }}>
+    <div className="w-64 shrink-0 flex flex-col overflow-hidden border-l border-white/10 backdrop-blur-md" style={{ background: "rgba(17,20,22,0.55)" }}>
       <div className="flex-1 overflow-y-auto px-3.5 py-4 space-y-4">
 
         {predictiveInsight && (
-          <div className="rounded-lg border border-violet-500/25 bg-violet-500/5 px-3 py-2.5">
+          <div className={cn("rounded-lg px-3 py-2.5", GLASS_VIOLET)} style={{ background: "rgba(139,92,246,0.06)" }}>
             <div className="flex items-center gap-1.5 mb-2">
               <Sparkles className="h-3 w-3 text-violet-400" />
               <p className="text-[8px] uppercase tracking-widest text-violet-300/70">Predictive Insights</p>
             </div>
             <div className="grid grid-cols-2 gap-1.5">
               <div className="bg-white/4 rounded px-2 py-1.5">
-                <p className="text-sm font-bold text-white">{predictiveInsight.score}</p>
+                <CountUp value={predictiveInsight.score} className="text-sm font-bold text-white font-mono" />
                 <p className="text-[7px] text-white/40">Risk score</p>
               </div>
               <div className="bg-white/4 rounded px-2 py-1.5">
-                <p className="text-sm font-bold text-emerald-300">{predictiveInsight.incidentsPreventedPerYear}</p>
+                <CountUp value={predictiveInsight.incidentsPreventedPerYear} className="text-sm font-bold text-emerald-300 font-mono" />
                 <p className="text-[7px] text-white/40">Incidents/yr prevented</p>
               </div>
             </div>
-            <p className="text-[9px] text-violet-200/70 mt-1.5">Est. ROI <span className="font-bold text-violet-100">{predictiveInsight.roiEstimate}</span>/yr</p>
+            <p className="text-[9px] text-violet-200/70 mt-1.5">Est. ROI <span className="font-bold text-violet-100 font-mono">{predictiveInsight.roiEstimate}</span>/yr</p>
           </div>
         )}
 
@@ -1123,7 +1235,7 @@ function RightPanel({ config, agentLog, readiness, predictiveInsight }: {
                 <motion.div key={card.id}
                   animate={card.status === "analysing" ? { borderColor: ["rgba(255,255,255,0.08)", "rgba(0,194,178,0.3)", "rgba(255,255,255,0.08)"] } : {}}
                   transition={{ duration: 1.2, repeat: Infinity }}
-                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-[var(--mil-border)] bg-[var(--mil-surface)]">
+                  className="flex items-center gap-1.5 px-2 py-1.5 rounded-md border border-white/8 backdrop-blur-sm bg-white/[0.02]">
                   <card.icon className={cn("h-3 w-3 shrink-0",
                     card.status === "pending"     ? "text-white/20" :
                     card.status === "enabled"     ? "text-emerald-400" :
@@ -1166,7 +1278,7 @@ function RightPanel({ config, agentLog, readiness, predictiveInsight }: {
       <div className="shrink-0 border-t border-[var(--mil-border)] px-3.5 py-3">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-[8px] uppercase tracking-widest text-[var(--mil-muted)]">Implementation Readiness</span>
-          <span className="text-[9px] font-bold text-[#00c2b2]">{readiness}%</span>
+          <span className="text-[9px] font-bold text-[#00c2b2] font-mono">{readiness}%</span>
         </div>
         <div className="h-1 rounded-full bg-white/8 overflow-hidden">
           <motion.div className="h-full rounded-full bg-[#00c2b2]" animate={{ width: `${readiness}%` }} transition={{ duration: 0.5 }} />
