@@ -7,7 +7,7 @@ import {
   Shield, ShieldCheck, Truck, User, MapPin, AlertTriangle,
   Check, Network, Activity, Lock, TrendingUp, Sparkles, Radar,
   Fingerprint, Phone, IdCard, Gauge, ArrowRight, BadgeAlert,
-  ScanSearch, RefreshCw, Send, ShieldAlert, Route, History,
+  ScanSearch, RefreshCw, Send, ShieldAlert, Route, History, Clock,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SherlockAvatar, sherlockStateFrom } from "./sherlock-avatar";
@@ -229,6 +229,86 @@ const DRIVERS: DriverProfile[] = [
   { id: "d5", name: "Ray Contreras",  cdl: "FL-50218", yearsExperience: 5,  safetyScore: 61, backgroundCheck: "flagged", biometricVerified: false, phoneVerified: false, lastActive: "Miami, FL", gsocMatch: "Alias match — GSOC freight fraud watchlist entry #4471" },
 ];
 
+// ── Rule Backtest & Impact Preview ─────────────────────────────────────────────
+// Replays the generated rules against the carrier's confirmed last-90-days
+// shipment history so the merchant sees projected impact — real catches vs.
+// false flags vs. added review friction — BEFORE approving deployment.
+//
+// NAMING: this is a historical *backtest*, not a "Digital Twin". A digital
+// twin implies a live, continuously-synced replica of the operation; this
+// only replays past shipments once. Keep all user-facing copy as "backtest /
+// simulation / impact preview". ("Digital Twin Simulation" may be used in
+// internal roadmap/pitch decks only, never in this UI.)
+//
+// Per-rule sim inputs are keyed by rule id so names/severity stay in sync with
+// FRAUD_RULES; false positives and rates are computed, not hand-picked.
+
+const BACKTEST_WINDOW_DAYS = 90;
+const HIGH_FP_THRESHOLD = 0.15; // >15% false-positive rate → flag for tuning
+
+interface BacktestRuleResult {
+  rule: FraudRule;
+  triggered: number;        // historical loads that matched the rule
+  truePositives: number;    // of those, actual fraud/risk caught
+  falsePositives: number;   // of those, legitimate loads flagged (computed)
+  fpRate: number;           // falsePositives / triggered (computed)
+  highFp: boolean;          // fpRate > HIGH_FP_THRESHOLD (computed)
+  action: "hold" | "block";
+  avgHoldHours: number;     // 0 for block-at-tender rules
+  fraudRule: boolean;       // counts toward "confirmed fraud" headline
+  tuningHint?: string;      // shown when the merchant reviews a flagged rule
+}
+
+interface BacktestSummary {
+  perRule: BacktestRuleResult[];
+  totalTriggered: number;
+  totalTP: number;
+  totalFP: number;
+  confirmedFraud: number;   // TP on the fraud-catching rules only
+  precision: number;        // totalTP / totalTriggered, as %
+  flagged: BacktestRuleResult[];
+  heldLoads: number;
+  weightedHoldHours: number;
+}
+
+const BACKTEST_RAW: Record<string, Omit<BacktestRuleResult, "rule" | "falsePositives" | "fpRate" | "highFp">> = {
+  r1: { triggered: 16, truePositives: 15, action: "hold",  avgHoldHours: 3.5, fraudRule: false },
+  r2: { triggered: 3,  truePositives: 3,  action: "block", avgHoldHours: 0,   fraudRule: true  },
+  r3: { triggered: 9,  truePositives: 8,  action: "hold",  avgHoldHours: 6.0, fraudRule: true  },
+  r4: { triggered: 24, truePositives: 22, action: "hold",  avgHoldHours: 2.5, fraudRule: false },
+  r5: { triggered: 14, truePositives: 11, action: "hold",  avgHoldHours: 1.5, fraudRule: false, tuningHint: "Widen the deviation threshold 15mi → 25mi to cut weekend re-route false flags." },
+  r6: { triggered: 12, truePositives: 9,  action: "hold",  avgHoldHours: 4.2, fraudRule: false, tuningHint: "Exclude pre-scheduled night pickups from the 10pm–5am window." },
+};
+
+function buildBacktest(rules: FraudRule[]): BacktestSummary {
+  const perRule: BacktestRuleResult[] = rules.map(rule => {
+    const raw = BACKTEST_RAW[rule.id];
+    const falsePositives = Math.max(0, raw.triggered - raw.truePositives);
+    const fpRate = raw.triggered > 0 ? falsePositives / raw.triggered : 0;
+    return { rule, ...raw, falsePositives, fpRate, highFp: fpRate > HIGH_FP_THRESHOLD };
+  });
+
+  const sum = (fn: (r: BacktestRuleResult) => number) => perRule.reduce((s, r) => s + fn(r), 0);
+  const totalTriggered = sum(r => r.triggered);
+  const totalTP = sum(r => r.truePositives);
+  const totalFP = sum(r => r.falsePositives);
+  const confirmedFraud = perRule.filter(r => r.fraudRule).reduce((s, r) => s + r.truePositives, 0);
+  const precision = totalTriggered > 0 ? Math.round((totalTP / totalTriggered) * 100) : 0;
+  const held = perRule.filter(r => r.action === "hold");
+  const heldLoads = held.reduce((s, r) => s + r.triggered, 0);
+  const weightedHoldHours = heldLoads > 0
+    ? held.reduce((s, r) => s + r.triggered * r.avgHoldHours, 0) / heldLoads
+    : 0;
+
+  return {
+    perRule, totalTriggered, totalTP, totalFP, confirmedFraud, precision,
+    flagged: perRule.filter(r => r.highFp),
+    heldLoads, weightedHoldHours,
+  };
+}
+
+const BACKTEST = buildBacktest(FRAUD_RULES);
+
 // ── Autonomous Carrier Resilience — synthetic demo scenario ────────────────────
 // A canned walkthrough Sherlock can offer once fraud rules are approved.
 // Purely illustrative: no live carrier/shipment data, no backend calls.
@@ -415,6 +495,11 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const [driverRoster,    setDriverRoster]    = useState<DriverProfile[] | null>(null);
   const [resilienceOffer,     setResilienceOffer]     = useState(false);
   const [resilienceDemoActive, setResilienceDemoActive] = useState(false);
+  // Rule Backtest & Impact Preview — shown after rules are generated; the
+  // driver roster and the fraud-rule approval gate stay hidden until the
+  // merchant acknowledges they've reviewed the projected impact.
+  const [backtest,        setBacktest]        = useState<BacktestSummary | null>(null);
+  const [backtestAck,     setBacktestAck]     = useState(false);
   // ACE-style landing gate: Sherlock introduces himself and the customer
   // launches into the pipeline explicitly, rather than the stage flow
   // rendering immediately on mount — mirrors SSCommandCenter's landing
@@ -566,8 +651,10 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       { id: "p4-1", agent: "fraud_intelligence_agent",action: "check_gsoc_feed",  status: "queued" },
       { id: "p4-2", agent: "configuration_agent",     action: "generate_rules",   status: "queued" },
       { id: "p4-3", agent: "configuration_agent",     action: "package_config",   status: "queued" },
+      { id: "p4-4", agent: "simulation_agent",        action: "run_backtest",     status: "queued" },
     ];
-    setPipeline(items); setFraudRules(null); setDriverRoster(null);
+    setPipeline(items);
+    setFraudRules(null); setDriverRoster(null); setBacktest(null); setBacktestAck(false);
     setSherlockLine("Now I'll cross-check every carrier in your network against FMCSA and the GSOC watchlist, then generate fraud rules tailored to what I've learned about your operation.");
     scrollActive();
 
@@ -575,14 +662,19 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       "347 carriers validated · 12 flagged for FMCSA discrepancies",
       "GSOC watchlist loaded · 3 carriers on active fraud alerts",
       "6 fraud rules generated based on cargo profile and carrier network",
-      "Configuration packaged · Awaiting deployment approval",
+      "Configuration packaged · 6 rules staged",
+      `Backtest complete · 6 rules replayed against ${BACKTEST_WINDOW_DAYS} days of shipment history`,
     ];
 
     items.forEach((item, i) => {
       later(() => {
+        // When the backtest step starts, Sherlock frames it conversationally.
+        if (item.action === "run_backtest") {
+          setSherlockLine(`Before these go live, want to see how they would've performed against your last ${BACKTEST_WINDOW_DAYS} days of shipments? Replaying all six now — this is the honest test.`);
+        }
         setPipeline(prev => prev.map((p, j) => j === i ? { ...p, status: "running" } : p));
         logAgent(item.agent, item.action);
-        setReadiness(r => Math.min(r + 5, 70));
+        setReadiness(r => Math.min(r + 4, 72));
         updateConfig({
           carrier_validation:    i >= 0 ? "configured"  : undefined,
           high_risk_rules:       i >= 1 ? "configured"  : undefined,
@@ -593,22 +685,40 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
           geofence_protection:   i >= 3 ? "enabled"     : undefined,
         });
 
+        // The generated rules appear as soon as they're generated, so the
+        // backtest that follows reads as "these exact rules, replayed."
+        if (item.action === "generate_rules") setFraudRules(FRAUD_RULES);
+
         later(() => {
           setPipeline(prev => prev.map((p, j) => j === i ? { ...p, status: "done", result: results[i] } : p));
-          setReadiness(r => Math.min(r + 3, 74));
+          setReadiness(r => Math.min(r + 2, 74));
           if (i === items.length - 1) {
             later(() => {
-              const company = c.company || "your company";
-              setSherlockLine(`I've generated 6 fraud rules for ${company}, and flagged 3 carriers already on the GSOC watchlist — those need your attention first. Approve these and I'll push them straight to config.`);
+              // Show the impact preview and hold — driver verification and the
+              // rule-approval gate stay hidden until it's acknowledged.
               setFraudRules(FRAUD_RULES);
-              setDriverRoster(DRIVERS);
-              setGate({ id: "gate-3", question: "Approve these fraud rules?", approved: false });
+              setBacktest(BACKTEST);
+              setSherlockLine("Here's how all six rules would have performed against your last 90 days — real catches, false flags, and the friction each would've added. Give it a look before we move on.");
               setProcessing(false); scrollActive();
             }, 600);
           }
-        }, 2000);
-      }, i * 3000);
+        }, i === items.length - 1 ? 1600 : 1500);
+      }, i * 2600);
     });
+  };
+
+  // ── Rule Backtest — acknowledgement gate ──────────────────────────────────
+  // Reviewing the projected impact is required (view, not edit) before the
+  // driver roster and the fraud-rule approval gate are revealed.
+
+  const handleBacktestAck = () => {
+    if (backtestAck) return;
+    setBacktestAck(true);
+    const company = ctxRef.current.company || "your company";
+    setSherlockLine(`Good — you've seen the projected impact. Here's the driver-level verification for ${company}'s active roster. Approve the rule set and I'll package it for deployment.`);
+    setDriverRoster(DRIVERS);
+    setGate({ id: "gate-3", question: "Approve these fraud rules?", approved: false });
+    scrollActive();
   };
 
   // ── Stage 4: Deployment ───────────────────────────────────────────────────
@@ -896,7 +1006,12 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                       {/* Stage 3 — fraud rules */}
                       {s.n === 3 && fraudRules && <FraudRulesCard rules={fraudRules} />}
 
-                      {/* Stage 3 — driver verification roster */}
+                      {/* Stage 3 — rule backtest & impact preview (gates the rest) */}
+                      {s.n === 3 && backtest && (
+                        <RuleBacktestCard backtest={backtest} acknowledged={backtestAck} onAcknowledge={handleBacktestAck} />
+                      )}
+
+                      {/* Stage 3 — driver verification roster (after backtest ack) */}
                       {s.n === 3 && driverRoster && <DriverRosterCard drivers={driverRoster} />}
 
                       {/* Stage 3 — Autonomous Carrier Resilience: offer + demo */}
@@ -1616,6 +1731,154 @@ function FraudRulesCard({ rules }: { rules: FraudRule[] }) {
           <span className="text-[9px] font-bold text-[#00c2b2] shrink-0 font-mono">{rule.confidence}%</span>
         </div>
       ))}
+    </div>
+  );
+}
+
+// ── Rule Backtest & Impact Preview ────────────────────────────────────────────
+// Historical replay of the generated rules against the confirmed 90-day
+// shipment history — projected catches vs. false flags vs. friction, shown
+// before deployment approval. Not a "Digital Twin" (see data note above).
+
+const SEV_BADGE: Record<string, string> = {
+  critical: "text-red-400 border-red-500/20 bg-red-500/5",
+  high:     "text-amber-400 border-amber-500/20 bg-amber-500/5",
+  medium:   "text-sky-400 border-sky-500/20 bg-sky-500/5",
+};
+
+function BacktestStat({ icon: Icon, label, value, tone }: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string; value: string; tone: "emerald" | "teal" | "amber";
+}) {
+  const toneColor = tone === "emerald" ? "text-emerald-300" : tone === "amber" ? "text-amber-300" : "text-[#00c2b2]";
+  return (
+    <div className="rounded-md border border-white/8 bg-black/20 px-2 py-1.5">
+      <div className="flex items-center gap-1">
+        <Icon className={cn("h-2.5 w-2.5", toneColor)} />
+        <span className="text-[8px] uppercase tracking-wide text-white/35 truncate">{label}</span>
+      </div>
+      <p className={cn("text-[13px] font-bold font-mono mt-0.5", toneColor)}>{value}</p>
+    </div>
+  );
+}
+
+function RuleBacktestCard({ backtest, acknowledged, onAcknowledge }: {
+  backtest: BacktestSummary;
+  acknowledged: boolean;
+  onAcknowledge: () => void;
+}) {
+  const [showTuning, setShowTuning] = useState(false);
+  const { perRule, totalTriggered, totalFP, confirmedFraud, precision, flagged, weightedHoldHours } = backtest;
+  const otherHighRisk = backtest.totalTP - confirmedFraud;
+
+  return (
+    <div className={cn("rounded-lg overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(24,28,31,0.45)" }}>
+      {/* Header */}
+      <div className="px-3 py-2 border-b border-[var(--mil-border)] flex items-center gap-2">
+        <History className="h-3 w-3 text-[#00c2b2]" />
+        <span className="text-[10px] font-semibold text-white">Rule Backtest &amp; Impact Preview</span>
+        <span className="ml-auto text-[9px] text-[var(--mil-muted)] font-mono">{BACKTEST_WINDOW_DAYS}-day replay · {totalTriggered} loads flagged</span>
+      </div>
+
+      {/* Net-effect summary one-liner */}
+      <div className="px-3 py-2.5 border-b border-[var(--mil-border)]">
+        <p className="text-[10px] text-white/75 leading-relaxed">
+          If these rules had been live across your last <span className="font-mono text-white">{BACKTEST_WINDOW_DAYS} days</span>, they would have caught{" "}
+          <span className="font-semibold text-emerald-300">{confirmedFraud} confirmed fraud &amp; double-brokering attempts</span>{" "}
+          and <span className="font-semibold text-white">{otherHighRisk} other high-risk loads</span>, while adding review friction to just{" "}
+          <span className="font-semibold text-amber-300">{totalFP} legitimate loads</span> — <span className="font-mono text-[#00c2b2]">{precision}%</span> precision held across all six rules.
+        </p>
+
+        {/* Stat strip */}
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <BacktestStat icon={ShieldCheck} label="Fraud caught" value={String(confirmedFraud)} tone="emerald" />
+          <BacktestStat icon={Clock}       label="Avg hold"     value={`${weightedHoldHours.toFixed(1)}h`} tone="teal" />
+          <BacktestStat icon={TrendingUp}  label="Precision"    value={`${precision}%`} tone="teal" />
+        </div>
+      </div>
+
+      {/* High false-positive flag / tuning CTA */}
+      {flagged.length > 0 && (
+        <div className="px-3 py-2 bg-amber-500/8 border-b border-amber-500/15">
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="h-3 w-3 text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[9px] text-amber-200 leading-relaxed">
+                <span className="font-semibold">{flagged.length} rule{flagged.length > 1 ? "s" : ""} exceeded a {Math.round(HIGH_FP_THRESHOLD * 100)}% false-positive rate</span>
+                {" — "}
+                {flagged.map((f, i) => (
+                  <span key={f.rule.id}>{f.rule.name} (<span className="font-mono">{Math.round(f.fpRate * 100)}%</span>){i < flagged.length - 1 ? ", " : ""}</span>
+                ))}. Worth tuning before deployment.
+              </p>
+              <button
+                onClick={() => setShowTuning(v => !v)}
+                className="mt-1 inline-flex items-center gap-1 text-[9px] font-semibold text-amber-300 hover:text-amber-100 transition-colors"
+              >
+                {showTuning ? "Hide tuning suggestions" : "Review flagged rules"}
+                <ChevronRight className={cn("h-2.5 w-2.5 transition-transform", showTuning && "rotate-90")} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Per-rule rows */}
+      {perRule.map(r => (
+        <div key={r.rule.id} className={cn("px-3 py-2 border-b border-[var(--mil-border)] last:border-0", r.highFp && "bg-amber-500/5")}>
+          <div className="flex items-start gap-2.5">
+            <span className={cn("text-[7px] font-bold px-1 py-0.5 rounded border uppercase mt-0.5 shrink-0", SEV_BADGE[r.rule.severity])}>{r.rule.severity}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] font-medium text-white/85 leading-snug truncate">{r.rule.name}</p>
+                {r.highFp && (
+                  <span className="text-[7px] font-bold px-1 py-0.5 rounded border uppercase shrink-0 text-amber-300 border-amber-500/30 bg-amber-500/10">high FP</span>
+                )}
+              </div>
+              {/* True vs false positive breakdown */}
+              <div className="flex items-center gap-2.5 mt-1">
+                <span className="text-[9px] text-white/40 font-mono">{r.triggered} triggered</span>
+                <span className="inline-flex items-center gap-1 text-[9px] text-emerald-300"><span className="h-1 w-1 rounded-full bg-emerald-400" />{r.truePositives} caught</span>
+                <span className="inline-flex items-center gap-1 text-[9px] text-amber-300"><span className="h-1 w-1 rounded-full bg-amber-400" />{r.falsePositives} false</span>
+              </div>
+              {/* Friction estimate */}
+              <p className="text-[9px] text-[var(--mil-muted)] mt-0.5">
+                {r.action === "block"
+                  ? `${r.triggered} load${r.triggered !== 1 ? "s" : ""} blocked at tender · no hold time`
+                  : `${r.triggered} load${r.triggered !== 1 ? "s" : ""} held avg ${r.avgHoldHours.toFixed(1)} hrs for verification`}
+              </p>
+              {/* Tuning suggestion (revealed via the CTA) */}
+              {r.highFp && showTuning && r.tuningHint && (
+                <div className="mt-1.5 flex items-start gap-1.5 rounded-md bg-amber-500/8 px-2 py-1">
+                  <RefreshCw className="h-2.5 w-2.5 text-amber-400 shrink-0 mt-0.5" />
+                  <p className="text-[9px] text-amber-200 leading-relaxed">Suggested tuning: {r.tuningHint}</p>
+                </div>
+              )}
+            </div>
+            {/* False-positive rate, right-aligned */}
+            <span className={cn("text-[9px] font-bold shrink-0 font-mono", r.highFp ? "text-amber-400" : "text-white/40")}>
+              {Math.round(r.fpRate * 100)}% FP
+            </span>
+          </div>
+        </div>
+      ))}
+
+      {/* Acknowledgement gate — required before driver verification + deployment */}
+      {!acknowledged ? (
+        <div className="px-3 py-2.5 border-t border-[var(--mil-border)]">
+          <button
+            onClick={onAcknowledge}
+            className="w-full py-2 rounded-lg bg-[#00c2b2] text-black text-[11px] font-bold hover:bg-[#00d9c7] transition-colors"
+          >
+            I&apos;ve reviewed the impact — continue
+          </button>
+          <p className="text-[8px] text-white/30 text-center mt-1.5">Reviewing projected impact is required before driver verification and deployment.</p>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 px-3 py-2 border-t border-emerald-500/15 bg-emerald-500/5">
+          <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
+          <span className="text-[9px] text-emerald-300">Impact reviewed · rule set carried into deployment</span>
+        </div>
+      )}
     </div>
   );
 }
