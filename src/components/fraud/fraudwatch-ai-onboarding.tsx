@@ -417,6 +417,11 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const [driverRoster,    setDriverRoster]    = useState<DriverProfile[] | null>(null);
   const [resilienceOffer,     setResilienceOffer]     = useState(false);
   const [resilienceDemoActive, setResilienceDemoActive] = useState(false);
+  // ACE-style landing gate: Sherlock introduces himself and the customer
+  // launches into the pipeline explicitly, rather than the stage flow
+  // rendering immediately on mount — mirrors SSCommandCenter's landing
+  // card → "Launch" → mode pattern used elsewhere in the platform.
+  const [started,          setStarted]          = useState(false);
   const ctxRef        = useRef(ctx);
   const activeRef     = useRef<HTMLDivElement>(null);
   const timers        = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -736,6 +741,16 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
 
   // ── Render ────────────────────────────────────────────────────────────────
 
+  if (!started) {
+    return (
+      <FraudWatchLanding
+        prefilledCarrier={prefilledCarrier}
+        onStart={() => setStarted(true)}
+        onClose={onClose}
+      />
+    );
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, x: 40 }}
@@ -924,6 +939,147 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       {/* ── Right: Config Panel ─────────────────────────────────────────── */}
       <RightPanel config={config} agentLog={agentLog} readiness={readiness} predictiveInsight={predictiveInsight} />
     </motion.div>
+  );
+}
+
+// ── Landing (ACE-pattern: intro card → explicit launch, not an immediate flow) ──
+
+function FraudWatchLanding({ prefilledCarrier, onStart, onClose }: {
+  prefilledCarrier?: string;
+  onStart: () => void;
+  onClose: () => void;
+}) {
+  const capabilities = [
+    "Predictive risk read before any system scan",
+    "ELD-informed Trust Score on rebind alternatives",
+    "Human approval gates on every deployment",
+  ];
+
+  return (
+    <div className="absolute inset-0 z-20 overflow-hidden" style={{ background: "var(--mil-bg)" }}>
+      {/* Background grid */}
+      <div className="absolute inset-0 opacity-[0.03]" style={{
+        backgroundImage: "linear-gradient(rgba(0,194,178,1) 1px, transparent 1px), linear-gradient(90deg, rgba(0,194,178,1) 1px, transparent 1px)",
+        backgroundSize: "40px 40px",
+      }} />
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-[#00c2b2]/5 blur-3xl" />
+      </div>
+
+      <button
+        onClick={onClose}
+        className="absolute top-5 right-5 z-10 h-7 w-7 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] flex items-center justify-center text-[var(--mil-muted)] hover:text-white transition-colors"
+      >
+        <X className="h-3.5 w-3.5" />
+      </button>
+
+      <div className="relative h-full flex items-center justify-center px-6 py-8 overflow-y-auto">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+          className="w-full max-w-2xl"
+        >
+          <div className="bg-[#111416] border border-[#D4AF37]/20 rounded-2xl shadow-[0_0_60px_rgba(212,175,55,0.08)] overflow-hidden">
+            {/* Header */}
+            <div className="px-6 pt-6 pb-5 border-b border-white/5 flex items-center gap-4">
+              <SherlockAvatar state="speaking" size={64} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <h1 className="text-lg font-bold text-white tracking-tight">Sherlock</h1>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#00c2b2]/15 text-[#00c2b2] border border-[#00c2b2]/30 font-medium">ONLINE</span>
+                </div>
+                <p className="text-[11px] text-[#D4AF37]/70 font-medium uppercase tracking-widest">FraudWatch Implementation Specialist</p>
+              </div>
+              <Zap className="h-4 w-4 text-[#00c2b2]/40 shrink-0" />
+            </div>
+
+            {/* Chat message */}
+            <div className="px-6 pt-5 pb-4">
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.15 }}
+                className="flex items-start gap-3"
+              >
+                <div className="h-6 w-6 rounded-full bg-[#00c2b2]/10 border border-[#00c2b2]/30 flex items-center justify-center shrink-0 mt-0.5">
+                  <Sparkles className="h-3 w-3 text-[#00c2b2]" />
+                </div>
+                <div className="bg-[#181c1f] border border-white/5 rounded-xl rounded-tl-sm px-4 py-3 max-w-md">
+                  {prefilledCarrier ? (
+                    <>
+                      <p className="text-sm text-white/90 leading-relaxed">
+                        Hi! I&apos;m <strong className="text-white">Sherlock</strong> — I&apos;ll be onboarding{" "}
+                        <strong className="text-[#00c2b2]">{prefilledCarrier}</strong> into FraudWatch.
+                      </p>
+                      <p className="text-sm text-white/70 mt-1 leading-relaxed">
+                        Six guided stages, about five minutes. Ready when you are.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-white/90 leading-relaxed">
+                        Hi! I&apos;m <strong className="text-white">Sherlock</strong> — your FraudWatch implementation specialist.
+                      </p>
+                      <p className="text-sm text-white/70 mt-1 leading-relaxed">
+                        I&apos;ll walk you through onboarding a carrier, stage by stage. Ready to get started?
+                      </p>
+                    </>
+                  )}
+                </div>
+              </motion.div>
+            </div>
+
+            {/* Launch card */}
+            <div className="px-6 pb-6">
+              <motion.button
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                onClick={onStart}
+                className="relative group w-full flex flex-col p-5 rounded-xl border text-left transition-all duration-200 bg-[#0d0f10] hover:bg-[#141819] border-[#00c2b2]/30 hover:border-[#00c2b2]/60"
+              >
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="h-9 w-9 rounded-xl flex items-center justify-center border bg-gradient-to-br from-[#00c2b2]/30 to-[#00c2b2]/10 border-white/5 group-hover:border-white/10 shrink-0">
+                    <ShieldCheck className="h-4 w-4 text-[#00c2b2]" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white truncate">
+                      {prefilledCarrier ? `Onboard ${prefilledCarrier}` : "Guided Carrier Onboarding"}
+                    </p>
+                    <p className="text-[10px] font-medium text-[#00c2b2]">6-Stage Agentic Setup</p>
+                  </div>
+                </div>
+                <p className="text-[11px] text-white/50 leading-relaxed mb-3">
+                  Sherlock validates your carrier network, cross-checks FMCSA and GSOC watchlists, and deploys fraud rules tailored to your operation.
+                </p>
+                <div className="space-y-1 mt-auto">
+                  {capabilities.map((cap) => (
+                    <div key={cap} className="flex items-center gap-1.5">
+                      <div className="h-1 w-1 rounded-full shrink-0 bg-[#00c2b2]" />
+                      <span className="text-[10px] text-white/40">{cap}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex items-center gap-1 text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity text-[#00c2b2]">
+                  Launch <ChevronRight className="h-3 w-3" />
+                </div>
+              </motion.button>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-3 border-t border-white/5 flex items-center justify-between">
+              <p className="text-[10px] text-white/20">Sherlock · FraudWatch Implementation Specialist</p>
+              <p className="text-[10px] text-[#00c2b2]/40">Overhaul AI · Agentic Onboarding</p>
+            </div>
+          </div>
+
+          <p className="text-center text-[10px] text-white/15 mt-4 uppercase tracking-widest">
+            Overhaul AI Research Prototype
+          </p>
+        </motion.div>
+      </div>
+    </div>
   );
 }
 
