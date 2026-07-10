@@ -7,6 +7,7 @@ import {
   Shield, ShieldCheck, Truck, User, MapPin, AlertTriangle,
   Check, Network, Activity, Lock, TrendingUp, Sparkles, Radar,
   Fingerprint, Phone, IdCard, Gauge, ArrowRight, BadgeAlert,
+  ScanSearch, RefreshCw, Send, ShieldAlert, Route, History,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SherlockAvatar, sherlockStateFrom } from "./sherlock-avatar";
@@ -230,6 +231,45 @@ const DRIVERS: DriverProfile[] = [
   { id: "d5", name: "Ray Contreras",  cdl: "FL-50218", yearsExperience: 5,  safetyScore: 61, backgroundCheck: "flagged", biometricVerified: false, phoneVerified: false, lastActive: "Miami, FL", gsocMatch: "Alias match — GSOC freight fraud watchlist entry #4471" },
 ];
 
+// ── Autonomous Carrier Resilience — synthetic demo scenario ────────────────────
+// A canned walkthrough Sherlock can offer once fraud rules are approved.
+// Purely illustrative: no live carrier/shipment data, no backend calls.
+interface ResilienceAlternative {
+  name: string;
+  laneMatch: number;
+  capacity: string;
+  safetyScore: number;
+  selected?: boolean;
+}
+
+const RESILIENCE_SCENARIO = {
+  shipmentId: "OH-77213",
+  lane: "Chicago, IL → Dallas, TX",
+  cargo: "High-value electronics",
+  cargoValue: "$412,000",
+  flaggedCarrier: "Apex Freight Solutions",
+  flagConfidence: 94,
+  flagReason: "MC number reassigned 3 times in 60 days — pattern consistent with double-brokering",
+  verifySignal: "GSOC-vetted carrier database confirms: Apex's insurance filing lapsed 11 days ago and was never renewed under the reassigned MC number.",
+  approvalThreshold: "$250,000",
+  etaImpact: "+35 minutes",
+};
+
+const RESILIENCE_ALTERNATIVES: ResilienceAlternative[] = [
+  { name: "Redline Transport",       laneMatch: 98, capacity: "Available now",     safetyScore: 96, selected: true },
+  { name: "Pioneer Freight Co.",     laneMatch: 94, capacity: "Available in 2h",   safetyScore: 91 },
+  { name: "Blue Horizon Logistics",  laneMatch: 89, capacity: "Available now",     safetyScore: 88 },
+];
+
+const RESILIENCE_STEPS = [
+  { id: "detect",   label: "Detect" },
+  { id: "verify",   label: "Verify" },
+  { id: "identify", label: "Identify Alternatives" },
+  { id: "rebind",   label: "Rebind" },
+  { id: "notify",   label: "Notify Customer" },
+  { id: "log",      label: "Log & Learn" },
+] as const;
+
 // Deterministic predictive-risk model — reads the Q&A answers and produces a
 // forward-looking exposure estimate, not just a snapshot of current state.
 function computePredictiveRisk(ctx: Record<string, string>): PredictiveInsight {
@@ -330,6 +370,8 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const [inputValue,      setInputValue]      = useState("");
   const [predictiveInsight, setPredictiveInsight] = useState<PredictiveInsight | null>(null);
   const [driverRoster,    setDriverRoster]    = useState<DriverProfile[] | null>(null);
+  const [resilienceOffer,     setResilienceOffer]     = useState(false);
+  const [resilienceDemoActive, setResilienceDemoActive] = useState(false);
   const ctxRef        = useRef(ctx);
   const activeRef     = useRef<HTMLDivElement>(null);
   const timers        = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -612,11 +654,39 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       markDone(3, "Integration map confirmed · 6 systems");
       later(() => startStage4(ctxRef.current), 500);
     } else if (gateId === "gate-3") {
-      markDone(4, "6 fraud rules approved");
-      later(() => startStage5(), 500);
+      // Don't markDone(4) yet — that would collapse this stage's active
+      // block (same "stage vanishes before its card can render" issue
+      // fixed on the Go-Live card) before the resilience offer gets a
+      // chance to show. Stage 4 stays active until Skip/Complete below.
+      later(() => {
+        setSherlockLine("Rules approved. One more thing worth showing you: FraudWatch doesn't just flag a problem — when it catches a fraudulent or high-risk carrier, it can automatically find you a safe alternative and rebook the shipment, so you're covered before you even see the alert. Want me to walk you through a sample rebind?");
+        setResilienceOffer(true);
+        scrollActive();
+      }, 500);
     } else if (gateId === "gate-4") {
       runDeployment();
     }
+  };
+
+  // ── Autonomous Carrier Resilience — offer handlers ────────────────────────
+
+  const handleResilienceSkip = () => {
+    setResilienceOffer(false);
+    setSherlockLine("No problem — you can see this in action anytime once you're live. Let's finish getting you there.");
+    markDone(4, "6 fraud rules approved");
+    later(() => startStage5(), 500);
+  };
+
+  const handleResilienceShow = () => {
+    setResilienceOffer(false);
+    setResilienceDemoActive(true);
+  };
+
+  const handleResilienceComplete = () => {
+    setResilienceDemoActive(false);
+    setSherlockLine("That's the resilience layer in action — detection to rebind in seconds, with GSOC in the loop for anything above threshold. Let's get back to your deployment.");
+    markDone(4, "6 fraud rules approved · resilience demo reviewed");
+    later(() => startStage5(), 900);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -778,6 +848,14 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
 
                       {/* Stage 4 — driver verification roster */}
                       {s.n === 4 && driverRoster && <DriverRosterCard drivers={driverRoster} />}
+
+                      {/* Stage 4 — Autonomous Carrier Resilience: offer + demo */}
+                      {s.n === 4 && resilienceOffer && (
+                        <ResilienceOfferCard onShow={handleResilienceShow} onSkip={handleResilienceSkip} />
+                      )}
+                      {s.n === 4 && resilienceDemoActive && (
+                        <CarrierResilienceDemo onComplete={handleResilienceComplete} />
+                      )}
 
                       {/* Stage 5 — pre-deploy checks */}
                       {s.n === 5 && preChecks && <PreDeployCard checks={preChecks} />}
@@ -1130,6 +1208,168 @@ function DriverRosterCard({ drivers }: { drivers: DriverProfile[] }) {
         </div>
       ))}
     </div>
+  );
+}
+
+// ── Autonomous Carrier Resilience — offer card ────────────────────────────────
+
+function ResilienceOfferCard({ onShow, onSkip }: { onShow: () => void; onSkip: () => void }) {
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+      className={cn("rounded-lg overflow-hidden", GLASS_TEAL)} style={{ background: "rgba(0,194,178,0.05)" }}>
+      <div className="px-3 py-2 border-b border-[#00c2b2]/15 flex items-center gap-2">
+        <RefreshCw className="h-3 w-3 text-[#00c2b2]" />
+        <span className="text-[10px] font-semibold text-white">Autonomous Carrier Resilience</span>
+        <span className="ml-auto text-[8px] font-bold text-[#00c2b2] border border-[#00c2b2]/30 bg-[#00c2b2]/10 px-1.5 py-0.5 rounded-full uppercase tracking-wide">L3</span>
+      </div>
+      <div className="px-3 py-3">
+        <p className="text-[11px] text-white/70 leading-relaxed mb-3">
+          Detect → verify → find a safe alternative → rebook — before you even see the alert. Want a 30-second walkthrough with a synthetic example?
+        </p>
+        <div className="flex gap-2">
+          <motion.button onClick={onShow} whileTap={{ scale: 0.99 }}
+            className="flex-1 py-2 rounded-lg bg-[#00c2b2] text-black text-[11px] font-bold hover:bg-[#00d9c7] transition-colors">
+            Show me a sample rebind
+          </motion.button>
+          <button onClick={onSkip}
+            className="px-3 py-2 rounded-lg border border-white/10 text-[11px] text-white/35 hover:text-white hover:border-white/25 transition-colors">
+            Skip for now
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+// ── Autonomous Carrier Resilience — live demo ─────────────────────────────────
+
+const RESILIENCE_STEP_ICON = { detect: ShieldAlert, verify: ScanSearch, identify: Route, rebind: RefreshCw, notify: Send, log: History } as const;
+
+function CarrierResilienceDemo({ onComplete }: { onComplete: () => void }) {
+  const [stepIndex,       setStepIndex]       = useState(-1);
+  const [awaitingApproval, setAwaitingApproval] = useState(false);
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useEffect(() => {
+    const later = (fn: () => void, ms: number) => { const t = setTimeout(fn, ms); timers.current.push(t); };
+    later(() => setStepIndex(0), 400);
+    later(() => setStepIndex(1), 2000);
+    later(() => setStepIndex(2), 3600);
+    later(() => setAwaitingApproval(true), 5200);
+    return () => timers.current.forEach(clearTimeout);
+  }, []);
+
+  const handleApprove = () => {
+    const later = (fn: () => void, ms: number) => { const t = setTimeout(fn, ms); timers.current.push(t); };
+    setAwaitingApproval(false);
+    setStepIndex(3);
+    later(() => setStepIndex(4), 1400);
+    later(() => setStepIndex(5), 2600);
+    later(() => onComplete(), 4400);
+  };
+
+  const s = RESILIENCE_SCENARIO;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+      className={cn("rounded-lg overflow-hidden", GLASS_TEAL)} style={{ background: "rgba(0,194,178,0.04)" }}>
+      <div className="px-3 py-2 border-b border-[#00c2b2]/15 flex items-center gap-2">
+        <RefreshCw className="h-3 w-3 text-[#00c2b2]" />
+        <span className="text-[10px] font-semibold text-white">Sample Rebind — {s.shipmentId}</span>
+        <span className="ml-auto text-[9px] text-[var(--mil-muted)] font-mono">{s.cargo} · {s.cargoValue}</span>
+      </div>
+
+      <div className="px-3 py-2.5 space-y-1.5">
+        {RESILIENCE_STEPS.map((step, i) => {
+          const Icon = RESILIENCE_STEP_ICON[step.id];
+          const isDone = stepIndex > i;
+          const isRunning = stepIndex === i;
+          return (
+            <div key={step.id}>
+              <div className="flex items-center gap-2.5">
+                <div className={cn("h-5 w-5 rounded-full border flex items-center justify-center shrink-0 transition-colors",
+                  isDone ? "border-emerald-400/50 bg-emerald-400/10" :
+                  isRunning ? "border-[#00c2b2]/60 bg-[#00c2b2]/10" :
+                  "border-white/10 bg-transparent"
+                )}>
+                  {isDone
+                    ? <Check className="h-2.5 w-2.5 text-emerald-400" />
+                    : isRunning
+                      ? <Loader2 className="h-2.5 w-2.5 text-[#00c2b2] animate-spin" />
+                      : <Icon className="h-2.5 w-2.5 text-white/20" />}
+                </div>
+                <span className={cn("text-[10px] font-semibold flex-1",
+                  isDone ? "text-white/50" : isRunning ? "text-white" : "text-white/20"
+                )}>{step.label}</span>
+              </div>
+
+              {/* Step detail — reveals once reached */}
+              <AnimatePresence>
+                {step.id === "detect" && stepIndex >= 0 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                    className="ml-7 mt-1 mb-1.5 rounded-md bg-red-500/8 border border-red-500/20 px-2.5 py-1.5">
+                    <p className="text-[10px] text-red-300 font-medium">{s.flaggedCarrier} flagged — <span className="font-mono">{s.flagConfidence}%</span> confidence</p>
+                    <p className="text-[9px] text-white/40 mt-0.5 leading-relaxed">{s.flagReason}</p>
+                  </motion.div>
+                )}
+                {step.id === "verify" && stepIndex >= 1 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                    className="ml-7 mt-1 mb-1.5 rounded-md bg-amber-500/8 border border-amber-500/20 px-2.5 py-1.5">
+                    <p className="text-[9px] text-amber-200 leading-relaxed">{s.verifySignal}</p>
+                    <p className="text-[9px] text-emerald-300 mt-1 flex items-center gap-1"><CheckCircle2 className="h-2.5 w-2.5" /> Secondary signal confirmed — not a false positive</p>
+                  </motion.div>
+                )}
+                {step.id === "identify" && stepIndex >= 2 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                    className="ml-7 mt-1 mb-1.5 space-y-1">
+                    {RESILIENCE_ALTERNATIVES.map(alt => (
+                      <div key={alt.name} className={cn("flex items-center gap-2 rounded-md px-2 py-1 border",
+                        alt.selected ? "bg-[#00c2b2]/8 border-[#00c2b2]/25" : "bg-white/4 border-white/8"
+                      )}>
+                        <span className={cn("text-[9px] flex-1", alt.selected ? "text-[#00c2b2] font-semibold" : "text-white/50")}>{alt.name}</span>
+                        <span className="text-[8px] text-white/30 font-mono">lane {alt.laneMatch}%</span>
+                        <span className="text-[8px] text-white/30 font-mono">safety {alt.safetyScore}</span>
+                        <span className="text-[8px] text-white/30">{alt.capacity}</span>
+                        {alt.selected && <CheckCircle2 className="h-3 w-3 text-[#00c2b2] shrink-0" />}
+                      </div>
+                    ))}
+                  </motion.div>
+                )}
+                {step.id === "rebind" && stepIndex >= 3 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                    className="ml-7 mt-1 mb-1.5 rounded-md bg-emerald-500/8 border border-emerald-500/20 px-2.5 py-1.5">
+                    <p className="text-[10px] text-emerald-300 font-medium">Rebooked with {RESILIENCE_ALTERNATIVES[0].name}</p>
+                    <p className="text-[9px] text-white/40 mt-0.5">{s.lane} · ETA impact <span className="font-mono">{s.etaImpact}</span></p>
+                  </motion.div>
+                )}
+                {step.id === "notify" && stepIndex >= 4 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                    className="ml-7 mt-1 mb-1.5 rounded-md bg-white/4 border border-white/8 px-2.5 py-1.5">
+                    <p className="text-[9px] text-white/60 leading-relaxed">Customer alert sent: risk detected on {s.shipmentId}, carrier swapped to {RESILIENCE_ALTERNATIVES[0].name}, new ETA {s.etaImpact} from plan.</p>
+                  </motion.div>
+                )}
+                {step.id === "log" && stepIndex >= 5 && (
+                  <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                    className="ml-7 mt-1 mb-1.5 rounded-md bg-white/4 border border-white/8 px-2.5 py-1.5">
+                    <p className="text-[9px] text-white/60 leading-relaxed">Full decision trail written to audit log · outcome fed back into carrier scoring model.</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* GSOC approval — shipment value is above the auto-execute threshold */}
+      {awaitingApproval && (
+        <div className="px-3 pb-3">
+          <GateBlock
+            gate={{ id: "resilience-gate", question: `Above the ${s.approvalThreshold} auto-execute threshold — approve the rebind to ${RESILIENCE_ALTERNATIVES[0].name}?`, approved: false }}
+            onApprove={handleApprove}
+          />
+        </div>
+      )}
+    </motion.div>
   );
 }
 
