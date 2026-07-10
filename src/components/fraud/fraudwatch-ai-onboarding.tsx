@@ -234,11 +234,24 @@ const DRIVERS: DriverProfile[] = [
 // ── Autonomous Carrier Resilience — synthetic demo scenario ────────────────────
 // A canned walkthrough Sherlock can offer once fraud rules are approved.
 // Purely illustrative: no live carrier/shipment data, no backend calls.
+
+// ELD-informed Trust Score — extends "Identify Alternatives" (step 3) with
+// real, verifiable performance data pulled from carrier-authorized ELD feeds
+// (provider varies per carrier: Samsara, Motive, Geotab, KeepTruckin — each
+// requires its own data-sharing agreement, so this isn't universally
+// available at launch). Raw ELD inputs below; trustScore is computed, not
+// hand-picked, via computeTrustScore().
 interface ResilienceAlternative {
   name: string;
-  laneMatch: number;
-  capacity: string;
-  safetyScore: number;
+  laneMatch: number;              // existing — lane/route compatibility
+  capacity: string;                // existing — real-time capacity
+  safetyScore: number;             // existing — historical theft-resistance score
+  eldProvider: string;
+  eldFreshness: "live" | "stale";  // stale data must downgrade confidence, never silently pass
+  hosCompliance: number;           // % — Hours of Service compliance rate
+  onTimePercent: number;           // % — ELD-verified transit times
+  criticalSafetyEvents90d: number; // last 90 days
+  driverTenureMonths: number;
   selected?: boolean;
 }
 
@@ -255,11 +268,43 @@ const RESILIENCE_SCENARIO = {
   etaImpact: "+35 minutes",
 };
 
-const RESILIENCE_ALTERNATIVES: ResilienceAlternative[] = [
-  { name: "Redline Transport",       laneMatch: 98, capacity: "Available now",     safetyScore: 96, selected: true },
-  { name: "Pioneer Freight Co.",     laneMatch: 94, capacity: "Available in 2h",   safetyScore: 91 },
-  { name: "Blue Horizon Logistics",  laneMatch: 89, capacity: "Available now",     safetyScore: 88 },
+// Minimum composite Trust Score to be auto-rebind eligible (L3). Below this
+// — or on stale ELD data — a carrier still shows up as an option but is
+// routed to GSOC for manual review (L2), regardless of lane fit or
+// availability. Recommend a 90-day shadow-mode calibration period on this
+// threshold before it gates live decisions.
+const TRUST_SCORE_THRESHOLD = 85;
+
+function capacityScore(capacity: string): number {
+  if (/available now/i.test(capacity)) return 100;
+  const hoursMatch = capacity.match(/(\d+)h/);
+  return hoursMatch ? Math.max(60, 100 - Number(hoursMatch[1]) * 10) : 70;
+}
+
+// Weighted composite: lane fit + capacity + historical theft-resistance +
+// ELD performance (HOS compliance, on-time %, safety events, tenure).
+// Stale ELD data discounts the ELD component rather than trusting it at
+// face value — freshness is a confidence multiplier, not a pass/fail gate.
+function computeTrustScore(a: Omit<ResilienceAlternative, "safetyScore" | "eldProvider" | "eldFreshness" | "selected" | "name" | "laneMatch" | "capacity"> & Pick<ResilienceAlternative, "safetyScore" | "eldFreshness" | "laneMatch" | "capacity">): number {
+  const tenureFactor = Math.min(a.driverTenureMonths / 24, 1) * 100;
+  const safetyEventPenalty = Math.max(0, 100 - a.criticalSafetyEvents90d * 25);
+  let eldScore = a.hosCompliance * 0.40 + a.onTimePercent * 0.35 + safetyEventPenalty * 0.15 + tenureFactor * 0.10;
+  if (a.eldFreshness === "stale") eldScore *= 0.6;
+
+  const composite = a.laneMatch * 0.20 + capacityScore(a.capacity) * 0.15 + a.safetyScore * 0.25 + eldScore * 0.40;
+  return Math.round(Math.max(0, Math.min(100, composite)));
+}
+
+const RESILIENCE_ALTERNATIVES_RAW: Omit<ResilienceAlternative, "selected">[] = [
+  { name: "Redline Transport",      laneMatch: 98, capacity: "Available now",   safetyScore: 96, eldProvider: "Samsara", eldFreshness: "live",  hosCompliance: 98, onTimePercent: 94, criticalSafetyEvents90d: 0, driverTenureMonths: 38 },
+  { name: "Pioneer Freight Co.",    laneMatch: 94, capacity: "Available in 2h", safetyScore: 91, eldProvider: "Motive",  eldFreshness: "live",  hosCompliance: 92, onTimePercent: 89, criticalSafetyEvents90d: 1, driverTenureMonths: 14 },
+  { name: "Blue Horizon Logistics", laneMatch: 89, capacity: "Available now",   safetyScore: 88, eldProvider: "Geotab",  eldFreshness: "stale", hosCompliance: 81, onTimePercent: 78, criticalSafetyEvents90d: 2, driverTenureMonths: 6  },
 ];
+
+const RESILIENCE_ALTERNATIVES: (ResilienceAlternative & { trustScore: number; autoRebindEligible: boolean })[] =
+  RESILIENCE_ALTERNATIVES_RAW
+    .map(a => ({ ...a, trustScore: computeTrustScore(a) }))
+    .map((a, i) => ({ ...a, selected: i === 0, autoRebindEligible: a.trustScore >= TRUST_SCORE_THRESHOLD && a.eldFreshness === "live" }));
 
 const RESILIENCE_STEPS = [
   { id: "detect",   label: "Detect" },
@@ -854,7 +899,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                         <ResilienceOfferCard onShow={handleResilienceShow} onSkip={handleResilienceSkip} />
                       )}
                       {s.n === 4 && resilienceDemoActive && (
-                        <CarrierResilienceDemo onComplete={handleResilienceComplete} />
+                        <CarrierResilienceDemo onComplete={handleResilienceComplete} onNarrate={setSherlockLine} />
                       )}
 
                       {/* Stage 5 — pre-deploy checks */}
@@ -1245,7 +1290,7 @@ function ResilienceOfferCard({ onShow, onSkip }: { onShow: () => void; onSkip: (
 
 const RESILIENCE_STEP_ICON = { detect: ShieldAlert, verify: ScanSearch, identify: Route, rebind: RefreshCw, notify: Send, log: History } as const;
 
-function CarrierResilienceDemo({ onComplete }: { onComplete: () => void }) {
+function CarrierResilienceDemo({ onComplete, onNarrate }: { onComplete: () => void; onNarrate?: (line: string) => void }) {
   const [stepIndex,       setStepIndex]       = useState(-1);
   const [awaitingApproval, setAwaitingApproval] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -1261,8 +1306,12 @@ function CarrierResilienceDemo({ onComplete }: { onComplete: () => void }) {
 
   const handleApprove = () => {
     const later = (fn: () => void, ms: number) => { const t = setTimeout(fn, ms); timers.current.push(t); };
+    const top = RESILIENCE_ALTERNATIVES[0];
     setAwaitingApproval(false);
     setStepIndex(3);
+    // Sherlock cites the evidence, not just the pick — the Trust Score
+    // exists so this line isn't a bare assertion.
+    onNarrate?.(`We didn't just pick a random backup carrier — ${top.name} has a ${top.hosCompliance}% HOS compliance rate and ${top.criticalSafetyEvents90d === 0 ? "zero safety incidents" : `only ${top.criticalSafetyEvents90d} safety incident${top.criticalSafetyEvents90d === 1 ? "" : "s"}`} in the last 90 days, verified straight from their ELD.`);
     later(() => setStepIndex(4), 1400);
     later(() => setStepIndex(5), 2600);
     later(() => onComplete(), 4400);
@@ -1321,24 +1370,47 @@ function CarrierResilienceDemo({ onComplete }: { onComplete: () => void }) {
                 )}
                 {step.id === "identify" && stepIndex >= 2 && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
-                    className="ml-7 mt-1 mb-1.5 space-y-1">
+                    className="ml-7 mt-1 mb-1.5 space-y-1.5">
                     {RESILIENCE_ALTERNATIVES.map(alt => (
-                      <div key={alt.name} className={cn("flex items-center gap-2 rounded-md px-2 py-1 border",
+                      <div key={alt.name} className={cn("rounded-md px-2 py-1.5 border",
                         alt.selected ? "bg-[#00c2b2]/8 border-[#00c2b2]/25" : "bg-white/4 border-white/8"
                       )}>
-                        <span className={cn("text-[9px] flex-1", alt.selected ? "text-[#00c2b2] font-semibold" : "text-white/50")}>{alt.name}</span>
-                        <span className="text-[8px] text-white/30 font-mono">lane {alt.laneMatch}%</span>
-                        <span className="text-[8px] text-white/30 font-mono">safety {alt.safetyScore}</span>
-                        <span className="text-[8px] text-white/30">{alt.capacity}</span>
-                        {alt.selected && <CheckCircle2 className="h-3 w-3 text-[#00c2b2] shrink-0" />}
+                        <div className="flex items-center gap-2">
+                          <span className={cn("text-[9px] flex-1", alt.selected ? "text-[#00c2b2] font-semibold" : "text-white/60 font-medium")}>{alt.name}</span>
+                          <div className="flex items-center gap-1" title="Trust Score">
+                            <Gauge className={cn("h-2.5 w-2.5", alt.autoRebindEligible ? "text-emerald-400" : "text-amber-400")} />
+                            <span className="text-[9px] font-bold font-mono text-white/70">{alt.trustScore}</span>
+                          </div>
+                          {alt.selected && <CheckCircle2 className="h-3 w-3 text-[#00c2b2] shrink-0" />}
+                        </div>
+                        {/* Plain-language justification — the evidence behind the number */}
+                        <p className="text-[8px] text-white/40 leading-relaxed mt-0.5">
+                          <span className="font-mono">{alt.hosCompliance}%</span> HOS compliance ·{" "}
+                          <span className="font-mono">{alt.criticalSafetyEvents90d}</span> critical safety event{alt.criticalSafetyEvents90d === 1 ? "" : "s"} in 90 days ·{" "}
+                          <span className="font-mono">{alt.onTimePercent}%</span> on-time (ELD-verified) · lane <span className="font-mono">{alt.laneMatch}%</span> · {alt.capacity}
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-1">
+                          <span className="text-[7px] text-white/25 font-mono">{alt.eldProvider} ELD</span>
+                          <span className={cn("text-[7px] font-bold px-1 py-0.5 rounded uppercase tracking-wide",
+                            alt.eldFreshness === "live" ? "text-emerald-400/70" : "text-amber-400/80 bg-amber-500/10"
+                          )}>{alt.eldFreshness === "live" ? "Live feed" : "Stale — confidence downgraded"}</span>
+                          {!alt.autoRebindEligible && (
+                            <span className="text-[7px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/25 px-1 py-0.5 rounded flex items-center gap-0.5">
+                              <AlertTriangle className="h-2 w-2" /> Below Trust Score threshold — GSOC review required
+                            </span>
+                          )}
+                        </div>
                       </div>
                     ))}
+                    <p className="text-[8px] text-white/25 leading-relaxed pt-0.5">
+                      ELD data via carrier-authorized API (Samsara, Motive, Geotab, KeepTruckin) — requires a data-sharing agreement per carrier and isn&apos;t available for every carrier yet. Trust Score threshold is in 90-day shadow-mode calibration before it gates live auto-rebind decisions.
+                    </p>
                   </motion.div>
                 )}
                 {step.id === "rebind" && stepIndex >= 3 && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
                     className="ml-7 mt-1 mb-1.5 rounded-md bg-emerald-500/8 border border-emerald-500/20 px-2.5 py-1.5">
-                    <p className="text-[10px] text-emerald-300 font-medium">Rebooked with {RESILIENCE_ALTERNATIVES[0].name}</p>
+                    <p className="text-[10px] text-emerald-300 font-medium">Rebooked with {RESILIENCE_ALTERNATIVES[0].name} — Trust Score <span className="font-mono">{RESILIENCE_ALTERNATIVES[0].trustScore}</span></p>
                     <p className="text-[9px] text-white/40 mt-0.5">{s.lane} · ETA impact <span className="font-mono">{s.etaImpact}</span></p>
                   </motion.div>
                 )}
