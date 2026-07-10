@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, SlidersHorizontal, ShieldAlert, Shield, ShieldCheck,
@@ -9,7 +10,6 @@ import {
   Truck, FileText, Activity, Plus, Bell, Bot, ArrowRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { FraudWatchAIOnboarding } from "./fraudwatch-ai-onboarding";
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 
@@ -440,14 +440,22 @@ function CarrierDetail({ carrier }: { carrier: Carrier }) {
 // ─── Main Export ──────────────────────────────────────────────────────────────
 
 export function CarrierRiskDashboard() {
+  const router = useRouter();
   const [filter, setFilter] = useState<FilterTab>("all");
   const [search, setSearch] = useState("");
   const [selected, setSelected] = useState<Carrier>(CARRIERS[0]);
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [droppedCarrier, setDroppedCarrier] = useState<string | undefined>();
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const dragCarrierRef = useRef<Carrier | null>(null);
+
+  // Sherlock's onboarding now lives at its own route (/fraud-watch/onboarding)
+  // instead of sliding in as an overlay on top of this dashboard — clicking
+  // in launches a genuinely separate, full-screen application experience,
+  // the way most SaaS products hand off from a landing/list view into a
+  // dedicated tool rather than stacking everything on one page.
+  const launchOnboarding = (carrierName?: string) => {
+    router.push(carrierName ? `/fraud-watch/onboarding?carrier=${encodeURIComponent(carrierName)}` : "/fraud-watch/onboarding");
+  };
 
   const filtered = CARRIERS.filter((c) => {
     const matchSearch = c.name.toLowerCase().includes(search.toLowerCase());
@@ -469,7 +477,7 @@ export function CarrierRiskDashboard() {
             <h1 className="text-sm font-semibold text-white">Carrier Risk Dashboard</h1>
           </div>
           <button
-            onClick={() => setShowOnboarding(true)}
+            onClick={() => launchOnboarding()}
             className="w-full flex items-center gap-2 px-3 py-2 mb-2 rounded-lg border border-[#00c2b2]/30 bg-[#00c2b2]/8 text-[#00c2b2] text-xs font-medium hover:bg-[#00c2b2]/15 transition-colors"
           >
             <Bot className="h-3.5 w-3.5 shrink-0" />
@@ -562,8 +570,7 @@ export function CarrierRiskDashboard() {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setDroppedCarrier(carrier.name);
-                      setShowOnboarding(true);
+                      launchOnboarding(carrier.name);
                     }}
                     className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-medium text-[#00c2b2] border border-[#00c2b2]/30 bg-[#00c2b2]/8 hover:bg-[#00c2b2]/20 transition-colors opacity-0 group-hover:opacity-100 shrink-0"
                   >
@@ -595,7 +602,7 @@ export function CarrierRiskDashboard() {
           setDraggingId(null);
           const name = e.dataTransfer.getData("text/plain") || dragCarrierRef.current?.name;
           dragCarrierRef.current = null;
-          if (name) { setDroppedCarrier(name); setShowOnboarding(true); }
+          if (name) launchOnboarding(name);
         }}
       >
         <AnimatePresence mode="wait">
@@ -605,9 +612,10 @@ export function CarrierRiskDashboard() {
           </motion.div>
         </AnimatePresence>
 
-        {/* Drop target overlay — visible while dragging */}
+        {/* Drop target overlay — visible while dragging, navigates to the
+            standalone onboarding app on drop rather than opening it inline */}
         <AnimatePresence>
-          {isDragOver && !showOnboarding && (
+          {isDragOver && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -620,24 +628,10 @@ export function CarrierRiskDashboard() {
                 <div className="h-14 w-14 rounded-2xl bg-[#00c2b2]/15 border border-[#00c2b2]/40 flex items-center justify-center">
                   <Bot className="h-7 w-7 text-[#00c2b2]" />
                 </div>
-                <p className="text-sm font-semibold text-[#00c2b2]">Drop to start AI onboarding</p>
-                <p className="text-xs text-[#00c2b2]/60">Sherlock will onboard this carrier automatically</p>
+                <p className="text-sm font-semibold text-[#00c2b2]">Drop to launch AI onboarding</p>
+                <p className="text-xs text-[#00c2b2]/60">Opens Sherlock in a dedicated onboarding workspace</p>
               </div>
             </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* AI Onboarding Panel — overlays the carrier detail.
-            Keyed by the dropped carrier so dragging a NEW carrier onto an
-            already-open session remounts Sherlock fresh instead of leaving him
-            mid-conversation with the old company. */}
-        <AnimatePresence>
-          {showOnboarding && (
-            <FraudWatchAIOnboarding
-              key={droppedCarrier ?? "none"}
-              onClose={() => { setShowOnboarding(false); setDroppedCarrier(undefined); }}
-              prefilledCarrier={droppedCarrier}
-            />
           )}
         </AnimatePresence>
       </main>
