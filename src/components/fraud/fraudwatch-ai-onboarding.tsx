@@ -166,12 +166,10 @@ interface DriverProfile {
 // ── Static data ────────────────────────────────────────────────────────────────
 
 const STAGES_META = [
-  { n: 1, label: "Business Discovery" },
-  { n: 2, label: "Enterprise Discovery" },
-  { n: 3, label: "Integration Validation" },
-  { n: 4, label: "Configuration Generation" },
-  { n: 5, label: "Pre-Deploy Validation" },
-  { n: 6, label: "Deployment" },
+  { n: 1, label: "Business Profile" },
+  { n: 2, label: "Discovery & Integration" },
+  { n: 3, label: "Configuration & Resilience" },
+  { n: 4, label: "Deployment" },
 ];
 
 // What Sherlock is focused on right now, surfaced as a small context chip
@@ -180,11 +178,9 @@ const STAGES_META = [
 // already tells us exactly what he's looking at.
 const STAGE_FOCUS: Record<number, string> = {
   1: "Business Profile",
-  2: "Enterprise Systems — TMS · ERP · EDI",
-  3: "System Integrations",
-  4: "Fraud Rules & Driver Verification",
-  5: "Deployment Readiness",
-  6: "Live Monitoring",
+  2: "Enterprise Systems & Integrations",
+  3: "Fraud Rules · Driver Verification · Resilience",
+  4: "Deployment Readiness & Live Monitoring",
 };
 
 const INITIAL_CONFIG: ConfigCard[] = [
@@ -205,13 +201,15 @@ const STATUS_STYLES: Record<string, { label: string; badge: string }> = {
   recommended: { label: "Recommended",badge: "text-blue-300 border-blue-500/30 bg-blue-500/10"    },
 };
 
+// Trimmed to the four questions that carry the most signal for the
+// predictive model and the fraud-rule generation — who/what/how many/how
+// you vet today. Cargo drives rule weighting, carrier count sizes the
+// exposure estimate, and current verification exposes the biggest gap.
 const Q_META = [
   { key: "contact",  label: "Company & Contact",   text: "What company are we onboarding today, and who am I speaking with?",              freeText: true,  options: undefined },
   { key: "cargo",    label: "Cargo Type",          text: "What types of cargo does {{company}} move? This tells me which fraud patterns to weight — high-value freight and cold chain draw very different risks.", freeText: false, options: ["Dry van / general freight","Refrigerated / temp-controlled","Flatbed / oversized","Tanker / liquid bulk","Hazmat / chemicals","High-value / electronics","Pharma / healthcare"] },
   { key: "carriers", label: "Carrier Count",       text: "How many active carriers is {{company}} working with? I'll use this to size the FMCSA and GSOC cross-reference I'm about to run.", freeText: false, options: ["1–25 carriers","26–100 carriers","101–500 carriers","500+ carriers"] },
-  { key: "geo",      label: "Geography",           text: "What regions does {{company}} operate in? Cross-border lanes widen the carrier identity fraud surface, so this shapes how strict I set verification.", freeText: false, options: ["US domestic only","US + Canada / Mexico","North America + Europe","Global operations"] },
-  { key: "fraud",    label: "Fraud History",       text: "Has {{company}} experienced cargo fraud or theft in the last 12 months? Nothing here disqualifies anything — it just tells me where to focus first.", freeText: false, options: ["Yes — multiple incidents","Yes — one or two","Minor attempts only","No incidents (that we know of)","Not sure"] },
-  { key: "verify",   label: "Current Verification",text: "How does {{company}} currently verify carriers before they move freight? This is usually where the gap is, so I want to see exactly what I'm replacing.", freeText: false, options: ["Manual paperwork / email","Carrier portal (self-service)","FMCSA lookup only","Third-party vetting service","No formal process"] },
+  { key: "verify",   label: "Current Verification",text: "Last one — how does {{company}} currently verify carriers before they move freight? This is usually where the gap is, so I want to see exactly what I'm replacing.", freeText: false, options: ["Manual paperwork / email","Carrier portal (self-service)","FMCSA lookup only","Third-party vetting service","No formal process"] },
 ];
 
 const FRAUD_RULES: FraudRule[] = [
@@ -463,15 +461,15 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     const completedLabel = stageQ === 0 && prefilledCarrier ? "Contact Person" : qm.label;
     setCompletedQAs(prev => [...prev, { label: completedLabel, answer }]);
 
-    // Sherlock reacts like a consultant noting something relevant, not a form advancing
+    // Sherlock reacts like a consultant noting something relevant, not a form
+    // advancing. Keyed off the question's `key` rather than its index so the
+    // reactions survive any future re-ordering or trimming of Q_META.
     const reaction = (() => {
       if (stageQ === 0 && prefilledCarrier) return `Good to meet you, ${answer}. I'll loop you in on everything as we set up ${company}.`;
       if (stageQ === 0) return `Good to meet you. I'll refer to "${company}" throughout — that keeps the audit trail clean on our side too.`;
-      if (stageQ === 1 && (answer.includes("Pharma") || answer.includes("High-value") || answer.includes("electronics")))
+      if (qm.key === "cargo" && /pharma|high-value|electronics/i.test(answer))
         return "Noted — high-value freight like that draws organized theft rings, so I'll weight your fraud rules more aggressively toward identity and pickup verification.";
-      if (stageQ === 4 && (answer.includes("multiple") || answer.includes("one or two")))
-        return "That history is useful, not alarming — it tells me exactly where your current process has gaps, which is what I'll close first.";
-      if (stageQ === 5 && (answer.includes("No formal") || answer.includes("Manual")))
+      if (qm.key === "verify" && /no formal|manual/i.test(answer))
         return "Manual vetting is where most carriers get hit — double-brokering slips straight through email chains. That's the first thing FraudWatch will automate for you.";
       return null;
     })();
@@ -479,7 +477,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     if (reaction) later(() => setSherlockLine(reaction), 300);
 
     const nextQ = stageQ + 1;
-    if (nextQ > 5) {
+    if (nextQ > Q_META.length - 1) {
       later(() => {
         setSherlockLine(`That's everything I need from you on ${company}. Before I go scan your systems, let me show you my predictive risk read — this tells us where to focus first.`);
         setPredictiveInsight(computePredictiveRisk(newCtx));
@@ -496,12 +494,15 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     if (processing) return;
     setProcessing(true);
     const c = ctxRef.current;
-    markDone(1, [c.company, c.cargo, c.carriers, c.geo].filter(Boolean).join(" · "));
+    markDone(1, [c.company, c.cargo, c.carriers].filter(Boolean).join(" · "));
     setReadiness(18);
     later(() => startStage2(c), 400);
   };
 
-  // ── Stage 2: Enterprise Discovery ─────────────────────────────────────────
+  // ── Stage 2: Discovery & Integration (Gate 2) ─────────────────────────────
+  // Scans the enterprise systems, then reveals the integration map and holds
+  // for confirmation — the old two-stage "discover, then validate" split
+  // collapsed into one continuous step.
 
   const startStage2 = (c: Record<string, string>) => {
     setStage(2); setProcessing(true);
@@ -542,9 +543,13 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
           setReadiness(r => Math.min(r + 4, 48));
           if (i === items.length - 1) {
             later(() => {
-              setSherlockLine("That's everything I need from your systems — here's what I found.");
-              markDone(2, "4 systems discovered · SAP TM, S/4HANA, X12 EDI, 347 carriers");
-              later(() => startStage3(c), 700);
+              // Reveal the integration map and hold for confirmation right
+              // here — no separate validation stage. Pipeline results stay
+              // on screen alongside the map.
+              setSherlockLine(`That's everything from your systems. Here's the integration map I put together for ${company} — confirm it looks right and I'll generate your config.`);
+              setShowMap(true);
+              setGate({ id: "gate-2", question: "Is this integration map correct?", approved: false });
+              setProcessing(false); setReadiness(52); scrollActive();
             }, 500);
           }
         }, 1800);
@@ -552,19 +557,10 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     });
   };
 
-  // ── Stage 3: Integration Validation (Gate 2) ──────────────────────────────
+  // ── Stage 3: Configuration & Resilience (Gate 3) ──────────────────────────
 
   const startStage3 = (c: Record<string, string>) => {
-    setStage(3); setPipeline([]); setShowMap(true);
-    setSherlockLine(`Here's the integration map I found for ${c.company || "your company"}. Take a look — I want to confirm this before I generate anything downstream.`);
-    setGate({ id: "gate-2", question: "Is this integration map correct?", approved: false });
-    setProcessing(false); setReadiness(52); scrollActive();
-  };
-
-  // ── Stage 4: Configuration Generation (Gate 3) ────────────────────────────
-
-  const startStage4 = (c: Record<string, string>) => {
-    setStage(4); setShowMap(false); setGate(null); setProcessing(true);
+    setStage(3); setShowMap(false); setGate(null); setProcessing(true);
     const items: PipelineItem[] = [
       { id: "p4-0", agent: "validation_agent",        action: "validate_carriers", status: "queued" },
       { id: "p4-1", agent: "fraud_intelligence_agent",action: "check_gsoc_feed",  status: "queued" },
@@ -615,49 +611,43 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     });
   };
 
-  // ── Stage 5: Pre-Deploy Validation ────────────────────────────────────────
+  // ── Stage 4: Deployment ───────────────────────────────────────────────────
+  // Runs the pre-deploy validation, then holds on the deployment gate right
+  // here — the old "validate, then a separate confirm stage" split collapsed
+  // into one final step.
 
-  const startStage5 = () => {
-    setStage(5); setFraudRules(null); setGate(null); setPipeline([]); setProcessing(true);
-    setSherlockLine("Rules approved. Before anything goes live, I run 5 pre-deploy checks — this is what catches a bad config before it ever touches your carriers.");
+  const startStage4 = () => {
+    setStage(4); setFraudRules(null); setGate(null); setPipeline([]); setProcessing(true);
+    setSherlockLine("Rules approved. Before anything goes live, I run a quick pre-deploy validation — this is what catches a bad config before it ever touches your carriers.");
     const checks: PreCheck[] = [
-      { label: "API connectivity — TMS, ERP, EDI", done: false },
-      { label: "Carrier database integrity check",  done: false },
-      { label: "GSOC feed authentication",          done: false },
-      { label: "Fraud rule conflict detection",     done: false },
-      { label: "Alert routing — Slack + GSOC",      done: false },
+      { label: "API connectivity — TMS, ERP, EDI",                 done: false },
+      { label: "GSOC feed auth + fraud-rule conflict detection",   done: false },
+      { label: "Alert routing — Slack + GSOC",                     done: false },
     ];
     setPreChecks(checks); scrollActive();
 
     checks.forEach((_, i) => {
       later(() => {
         setPreChecks(prev => prev?.map((c, j) => j === i ? { ...c, done: true } : c) ?? null);
-        setReadiness(r => Math.min(r + 4, 93));
+        setReadiness(r => Math.min(r + 5, 95));
         if (i === checks.length - 1) {
           later(() => {
-            setSherlockLine("All 5 checks passed. Your config is clean — nothing left standing between here and a live deployment.");
-            markDone(5, "All 5 validation checks passed");
-            setReadiness(95);
-            later(() => startStage6(), 800);
+            // Checks passed — surface the deployment gate inline. preChecks
+            // stay visible above it so the "all clear" evidence remains.
+            setSherlockLine("All checks passed and your config is clean. The moment you confirm, I'll activate GSOC monitoring and push these rules to production.");
+            setReadiness(96);
+            setGate({ id: "gate-4", question: "Confirm deployment and activate FraudWatch?", approved: false });
+            setProcessing(false); scrollActive();
           }, 500);
         }
-      }, (i + 1) * 1800);
+      }, (i + 1) * 1600);
     });
-  };
-
-  // ── Stage 6: Deployment Gate ──────────────────────────────────────────────
-
-  const startStage6 = () => {
-    setStage(6); setPreChecks(null); setProcessing(false);
-    setSherlockLine("Everything's green. The moment you confirm, I'll activate GSOC monitoring and push these rules to production.");
-    setGate({ id: "gate-4", question: "Confirm deployment and activate FraudWatch?", approved: false });
-    scrollActive();
   };
 
   // ── Deploy ────────────────────────────────────────────────────────────────
 
   const runDeployment = () => {
-    setGate(null); setProcessing(true);
+    setGate(null); setPreChecks(null); setProcessing(true);
     const items: PipelineItem[] = [
       { id: "d-0", agent: "deployment_agent", action: "deploy_config",            status: "queued" },
       { id: "d-1", agent: "deployment_agent", action: "activate_gsoc_monitoring", status: "queued" },
@@ -688,7 +678,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
               // Hold the Go-Live card on screen before collapsing to the
               // one-line summary — marking done immediately would hide the
               // card in the same render it appears.
-              later(() => markDone(6, "FraudWatch live · 347 carriers monitored · 6 rules active"), 4000);
+              later(() => markDone(4, "FraudWatch live · 347 carriers monitored · 6 rules active"), 4000);
             }, 600);
           }
         }, 2000);
@@ -701,13 +691,13 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const handleGate = (gateId: string) => {
     setGate(prev => prev ? { ...prev, approved: true } : null);
     if (gateId === "gate-2") {
-      markDone(3, "Integration map confirmed · 6 systems");
-      later(() => startStage4(ctxRef.current), 500);
+      markDone(2, "Systems + integration map confirmed · 6 systems");
+      later(() => startStage3(ctxRef.current), 500);
     } else if (gateId === "gate-3") {
-      // Don't markDone(4) yet — that would collapse this stage's active
+      // Don't markDone(3) yet — that would collapse this stage's active
       // block (same "stage vanishes before its card can render" issue
       // fixed on the Go-Live card) before the resilience offer gets a
-      // chance to show. Stage 4 stays active until Skip/Complete below.
+      // chance to show. Stage 3 stays active until Skip/Complete below.
       later(() => {
         setSherlockLine("Rules approved. One more thing worth showing you: FraudWatch doesn't just flag a problem — when it catches a fraudulent or high-risk carrier, it can automatically find you a safe alternative and rebook the shipment, so you're covered before you even see the alert. Want me to walk you through a sample rebind?");
         setResilienceOffer(true);
@@ -723,8 +713,8 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const handleResilienceSkip = () => {
     setResilienceOffer(false);
     setSherlockLine("No problem — you can see this in action anytime once you're live. Let's finish getting you there.");
-    markDone(4, "6 fraud rules approved");
-    later(() => startStage5(), 500);
+    markDone(3, "6 fraud rules approved");
+    later(() => startStage4(), 500);
   };
 
   const handleResilienceShow = () => {
@@ -735,8 +725,8 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const handleResilienceComplete = () => {
     setResilienceDemoActive(false);
     setSherlockLine("That's the resilience layer in action — detection to rebind in seconds, with GSOC in the loop for anything above threshold. Let's get back to your deployment.");
-    markDone(4, "6 fraud rules approved · resilience demo reviewed");
-    later(() => startStage5(), 900);
+    markDone(3, "6 fraud rules approved · resilience demo reviewed");
+    later(() => startStage4(), 900);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -770,7 +760,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
           <SherlockAvatar state={sherlockStateFrom(processing, justSpoke)} size={40} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-white">Sherlock <span className="text-white/30 font-normal">· FraudWatch Implementation Specialist</span></p>
-            <p className="text-[10px] text-[var(--mil-muted)] font-mono">Stage {stage}/6 · {STAGE_FOCUS[stage]}</p>
+            <p className="text-[10px] text-[var(--mil-muted)] font-mono">Stage {stage}/{STAGES_META.length} · {STAGE_FOCUS[stage]}</p>
           </div>
           <button onClick={onClose} className="h-7 w-7 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] flex items-center justify-center text-[var(--mil-muted)] hover:text-white transition-colors">
             <X className="h-3.5 w-3.5" />
@@ -895,33 +885,33 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                         <PredictiveRiskCard insight={predictiveInsight} onContinue={handleContinueFromPredictive} disabled={processing} />
                       )}
 
-                      {/* Agent pipeline (stages 2, 4, 6) */}
-                      {(s.n === 2 || s.n === 4 || s.n === 6) && pipeline.length > 0 && (
+                      {/* Agent pipeline (stages 2, 3, 4) */}
+                      {(s.n === 2 || s.n === 3 || s.n === 4) && pipeline.length > 0 && (
                         <PipelineView items={pipeline} />
                       )}
 
-                      {/* Stage 3 — integration map */}
-                      {s.n === 3 && showMap && <IntegrationMapCard />}
+                      {/* Stage 2 — integration map */}
+                      {s.n === 2 && showMap && <IntegrationMapCard />}
 
-                      {/* Stage 4 — fraud rules */}
-                      {s.n === 4 && fraudRules && <FraudRulesCard rules={fraudRules} />}
+                      {/* Stage 3 — fraud rules */}
+                      {s.n === 3 && fraudRules && <FraudRulesCard rules={fraudRules} />}
 
-                      {/* Stage 4 — driver verification roster */}
-                      {s.n === 4 && driverRoster && <DriverRosterCard drivers={driverRoster} />}
+                      {/* Stage 3 — driver verification roster */}
+                      {s.n === 3 && driverRoster && <DriverRosterCard drivers={driverRoster} />}
 
-                      {/* Stage 4 — Autonomous Carrier Resilience: offer + demo */}
-                      {s.n === 4 && resilienceOffer && (
+                      {/* Stage 3 — Autonomous Carrier Resilience: offer + demo */}
+                      {s.n === 3 && resilienceOffer && (
                         <ResilienceOfferCard onShow={handleResilienceShow} onSkip={handleResilienceSkip} />
                       )}
-                      {s.n === 4 && resilienceDemoActive && (
+                      {s.n === 3 && resilienceDemoActive && (
                         <CarrierResilienceDemo onComplete={handleResilienceComplete} onNarrate={setSherlockLine} />
                       )}
 
-                      {/* Stage 5 — pre-deploy checks */}
-                      {s.n === 5 && preChecks && <PreDeployCard checks={preChecks} />}
+                      {/* Stage 4 — pre-deploy checks */}
+                      {s.n === 4 && preChecks && <PreDeployCard checks={preChecks} />}
 
-                      {/* Stage 6 — go-live card */}
-                      {s.n === 6 && isLive && <GoLiveCard />}
+                      {/* Stage 4 — go-live card */}
+                      {s.n === 4 && isLive && <GoLiveCard />}
 
                       {/* Gate (any active stage) */}
                       {gate && !gate.approved && (
@@ -1013,7 +1003,7 @@ function FraudWatchLanding({ prefilledCarrier, onStart, onClose }: {
                         <strong className="text-[#00c2b2]">{prefilledCarrier}</strong> into FraudWatch.
                       </p>
                       <p className="text-sm text-white/70 mt-1 leading-relaxed">
-                        Six guided stages, about five minutes. Ready when you are.
+                        Four guided stages, just a few minutes. Ready when you are.
                       </p>
                     </>
                   ) : (
@@ -1047,7 +1037,7 @@ function FraudWatchLanding({ prefilledCarrier, onStart, onClose }: {
                     <p className="text-sm font-semibold text-white truncate">
                       {prefilledCarrier ? `Onboard ${prefilledCarrier}` : "Guided Carrier Onboarding"}
                     </p>
-                    <p className="text-[10px] font-medium text-[#00c2b2]">6-Stage Agentic Setup</p>
+                    <p className="text-[10px] font-medium text-[#00c2b2]">4-Stage Agentic Setup</p>
                   </div>
                 </div>
                 <p className="text-[11px] text-white/50 leading-relaxed mb-3">
@@ -1133,7 +1123,7 @@ function Stage1Form({ stageQ, completedQAs, ctx, inputValue, setInputValue, onAn
       )}
 
       {/* Active question — soft glow signals this is the currently-focused prompt */}
-      {stageQ <= 5 && qm && (
+      {qm && (
         <motion.div
           className="rounded-lg overflow-hidden border border-[#00c2b2]/25 backdrop-blur-md"
           style={{ background: "rgba(0,194,178,0.04)" }}

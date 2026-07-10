@@ -73,7 +73,7 @@ const AGENT_WORKFORCE = [
     name: "Sherlock — FraudWatch Specialist",
     tag: "Agentic Onboarding",
     accent: "teal",
-    desc: "Drag a carrier onto Sherlock and he runs a 6-stage onboarding: discovers your TMS/ERP/EDI stack, generates fraud rules, validates, and deploys — conversationally.",
+    desc: "Drag a carrier onto Sherlock and he runs a 4-stage onboarding: discovers your TMS/ERP/EDI stack, generates fraud rules, walks a sample rebind, and deploys — conversationally.",
     bullets: ["Drag-and-drop carrier onboarding", "Auto-discovers SAP, EDI & carrier APIs", "Deploys 6 fraud rules with confidence scores"],
     href: "/fraud-watch",
     cta: "Onboard a carrier",
