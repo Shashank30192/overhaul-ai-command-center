@@ -2022,7 +2022,7 @@ function RightPanel({ config, agentLog, readiness, predictiveInsight }: {
               <div className="space-y-1.5">
                 <AnimatePresence initial={false}>
                   {agentLog.map((log, i) => (
-                    <motion.div key={`${log.agent}-${log.ts}`}
+                    <motion.div key={`${log.agent}-${log.ts}-${i}`}
                       initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }}
                       className="flex items-center gap-1.5 text-[9px]">
                       <div className="h-1 w-1 rounded-full bg-[#00c2b2] shrink-0" />
