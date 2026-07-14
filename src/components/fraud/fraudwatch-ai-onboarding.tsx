@@ -165,23 +165,29 @@ interface DriverProfile {
 
 // ── Static data ────────────────────────────────────────────────────────────────
 
+// Discovery now runs inline as part of Stage 1 (no separate "Discovery &
+// Integration" stage) — the agent pipeline that scans TMS/ERP/EDI kicks off
+// automatically right after the predictive risk read, before the customer
+// hits any new numbered step. Shortens the flow to 3 stages total.
 const STAGES_META = [
-  { n: 1, label: "Business Profile" },
-  { n: 2, label: "Discovery & Integration" },
-  { n: 3, label: "Configuration & Resilience" },
-  { n: 4, label: "Deployment" },
+  { n: 1, label: "Business Profile & Discovery" },
+  { n: 2, label: "Configuration & Resilience" },
+  { n: 3, label: "Deployment" },
 ];
 
 // What Sherlock is focused on right now, surfaced as a small context chip
-// above his line — the lightweight version of a "dynamic workspace" that
-// doesn't require inventing a topic-detection layer: the current stage
-// already tells us exactly what he's looking at.
-const STAGE_FOCUS: Record<number, string> = {
-  1: "Business Profile",
-  2: "Enterprise Systems & Integrations",
-  3: "Fraud Rules · Driver Verification · Resilience",
-  4: "Deployment Readiness & Live Monitoring",
-};
+// above his line. Stage 1 covers two sub-phases (business Q&A, then the
+// discovery pipeline/integration map) so its focus label is derived from
+// live state rather than a static lookup.
+function stageFocusLabel(stage: number, pipelineRunning: boolean, mapShown: boolean): string {
+  if (stage === 1) {
+    if (mapShown) return "Integration Review";
+    if (pipelineRunning) return "Enterprise Systems & Integrations";
+    return "Business Profile";
+  }
+  if (stage === 2) return "Fraud Rules · Driver Verification · Resilience";
+  return "Deployment Readiness & Live Monitoring";
+}
 
 const INITIAL_CONFIG: ConfigCard[] = [
   { id: "carrier_validation",    label: "Carrier Validation",      icon: ShieldCheck,   status: "pending" },
@@ -492,7 +498,6 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const [processing,      setProcessing]      = useState(false);
   const [inputValue,      setInputValue]      = useState("");
   const [predictiveInsight, setPredictiveInsight] = useState<PredictiveInsight | null>(null);
-  const [driverRoster,    setDriverRoster]    = useState<DriverProfile[] | null>(null);
   const [resilienceOffer,     setResilienceOffer]     = useState(false);
   const [resilienceDemoActive, setResilienceDemoActive] = useState(false);
   // Rule Backtest & Impact Preview — shown after rules are generated; the
@@ -500,6 +505,10 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   // merchant acknowledges they've reviewed the projected impact.
   const [backtest,        setBacktest]        = useState<BacktestSummary | null>(null);
   const [backtestAck,     setBacktestAck]     = useState(false);
+  // Driver Verification renders inside the same combined card as the
+  // backtest impact preview (one output, not two stacked cards) — its data
+  // is static, so no separate reveal state is needed; DRIVERS is passed
+  // straight into ImpactPreviewCard once the backtest itself is ready.
   // ACE-style landing gate: Sherlock introduces himself and the customer
   // launches into the pipeline explicitly, rather than the stage flow
   // rendering immediately on mount — mirrors SSCommandCenter's landing
@@ -578,19 +587,17 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const handleContinueFromPredictive = () => {
     if (processing) return;
     setProcessing(true);
-    const c = ctxRef.current;
-    markDone(1, [c.company, c.cargo, c.carriers].filter(Boolean).join(" · "));
     setReadiness(18);
-    later(() => startStage2(c), 400);
+    later(() => startDiscovery(ctxRef.current), 400);
   };
 
-  // ── Stage 2: Discovery & Integration (Gate 2) ─────────────────────────────
+  // ── Stage 1 (continued): Discovery & Integration (Gate 2) ─────────────────
   // Scans the enterprise systems, then reveals the integration map and holds
-  // for confirmation — the old two-stage "discover, then validate" split
-  // collapsed into one continuous step.
+  // for confirmation — runs inline within Stage 1 rather than as its own
+  // numbered stage, so the customer never sees the flow "advance" for it.
 
-  const startStage2 = (c: Record<string, string>) => {
-    setStage(2); setProcessing(true);
+  const startDiscovery = (c: Record<string, string>) => {
+    setProcessing(true);
     const company = c.company || "your company";
     const items: PipelineItem[] = [
       { id: "p2-0", agent: "discovery_agent",            action: "scan_tms",             status: "queued" },
@@ -642,10 +649,10 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     });
   };
 
-  // ── Stage 3: Configuration & Resilience (Gate 3) ──────────────────────────
+  // ── Stage 2: Configuration & Resilience (Gate 3) ──────────────────────────
 
-  const startStage3 = (c: Record<string, string>) => {
-    setStage(3); setShowMap(false); setGate(null); setProcessing(true);
+  const startConfiguration = (c: Record<string, string>) => {
+    setStage(2); setShowMap(false); setGate(null); setProcessing(true);
     const items: PipelineItem[] = [
       { id: "p4-0", agent: "validation_agent",        action: "validate_carriers", status: "queued" },
       { id: "p4-1", agent: "fraud_intelligence_agent",action: "check_gsoc_feed",  status: "queued" },
@@ -654,7 +661,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       { id: "p4-4", agent: "simulation_agent",        action: "run_backtest",     status: "queued" },
     ];
     setPipeline(items);
-    setFraudRules(null); setDriverRoster(null); setBacktest(null); setBacktestAck(false);
+    setFraudRules(null); setBacktest(null); setBacktestAck(false);
     setSherlockLine("Now I'll cross-check every carrier in your network against FMCSA and the GSOC watchlist, then generate fraud rules tailored to what I've learned about your operation.");
     scrollActive();
 
@@ -694,11 +701,12 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
           setReadiness(r => Math.min(r + 2, 74));
           if (i === items.length - 1) {
             later(() => {
-              // Show the impact preview and hold — driver verification and the
-              // rule-approval gate stay hidden until it's acknowledged.
+              // Show the combined impact + driver verification output and
+              // hold — the rule-approval gate stays hidden until it's
+              // acknowledged.
               setFraudRules(FRAUD_RULES);
               setBacktest(BACKTEST);
-              setSherlockLine("Here's how all six rules would have performed against your last 90 days — real catches, false flags, and the friction each would've added. Give it a look before we move on.");
+              setSherlockLine("Here's how all six rules would have performed against your last 90 days, plus driver-level verification for your active roster — real catches, false flags, friction, and who's on the road. Give it a look before we move on.");
               setProcessing(false); scrollActive();
             }, 600);
           }
@@ -707,27 +715,26 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
     });
   };
 
-  // ── Rule Backtest — acknowledgement gate ──────────────────────────────────
-  // Reviewing the projected impact is required (view, not edit) before the
-  // driver roster and the fraud-rule approval gate are revealed.
+  // ── Impact preview — acknowledgement gate ─────────────────────────────────
+  // Reviewing the projected impact and driver roster is required (view, not
+  // edit) before the fraud-rule approval gate is revealed.
 
   const handleBacktestAck = () => {
     if (backtestAck) return;
     setBacktestAck(true);
     const company = ctxRef.current.company || "your company";
-    setSherlockLine(`Good — you've seen the projected impact. Here's the driver-level verification for ${company}'s active roster. Approve the rule set and I'll package it for deployment.`);
-    setDriverRoster(DRIVERS);
+    setSherlockLine(`Good — you've reviewed the impact and the driver roster for ${company}. Approve the rule set and I'll package it for deployment.`);
     setGate({ id: "gate-3", question: "Approve these fraud rules?", approved: false });
     scrollActive();
   };
 
-  // ── Stage 4: Deployment ───────────────────────────────────────────────────
+  // ── Stage 3: Deployment ───────────────────────────────────────────────────
   // Runs the pre-deploy validation, then holds on the deployment gate right
   // here — the old "validate, then a separate confirm stage" split collapsed
   // into one final step.
 
-  const startStage4 = () => {
-    setStage(4); setFraudRules(null); setGate(null); setPipeline([]); setProcessing(true);
+  const startDeployment = () => {
+    setStage(3); setFraudRules(null); setGate(null); setPipeline([]); setProcessing(true);
     setSherlockLine("Rules approved. Before anything goes live, I run a quick pre-deploy validation — this is what catches a bad config before it ever touches your carriers.");
     const checks: PreCheck[] = [
       { label: "API connectivity — TMS, ERP, EDI",                 done: false },
@@ -788,7 +795,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
               // Hold the Go-Live card on screen before collapsing to the
               // one-line summary — marking done immediately would hide the
               // card in the same render it appears.
-              later(() => markDone(4, "FraudWatch live · 347 carriers monitored · 6 rules active"), 4000);
+              later(() => markDone(3, "FraudWatch live · 347 carriers monitored · 6 rules active"), 4000);
             }, 600);
           }
         }, 2000);
@@ -801,13 +808,16 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const handleGate = (gateId: string) => {
     setGate(prev => prev ? { ...prev, approved: true } : null);
     if (gateId === "gate-2") {
-      markDone(2, "Systems + integration map confirmed · 6 systems");
-      later(() => startStage3(ctxRef.current), 500);
+      // Marks Stage 1 done as a whole — business profile + discovery both
+      // live under this one stage now, so its completed summary covers both.
+      const c = ctxRef.current;
+      markDone(1, [c.company, c.cargo, c.carriers, "6 systems confirmed"].filter(Boolean).join(" · "));
+      later(() => startConfiguration(c), 500);
     } else if (gateId === "gate-3") {
-      // Don't markDone(3) yet — that would collapse this stage's active
+      // Don't markDone(2) yet — that would collapse this stage's active
       // block (same "stage vanishes before its card can render" issue
       // fixed on the Go-Live card) before the resilience offer gets a
-      // chance to show. Stage 3 stays active until Skip/Complete below.
+      // chance to show. Stage 2 stays active until Skip/Complete below.
       later(() => {
         setSherlockLine("Rules approved. One more thing worth showing you: FraudWatch doesn't just flag a problem — when it catches a fraudulent or high-risk carrier, it can automatically find you a safe alternative and rebook the shipment, so you're covered before you even see the alert. Want me to walk you through a sample rebind?");
         setResilienceOffer(true);
@@ -823,8 +833,8 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const handleResilienceSkip = () => {
     setResilienceOffer(false);
     setSherlockLine("No problem — you can see this in action anytime once you're live. Let's finish getting you there.");
-    markDone(3, "6 fraud rules approved");
-    later(() => startStage4(), 500);
+    markDone(2, "6 fraud rules approved");
+    later(() => startDeployment(), 500);
   };
 
   const handleResilienceShow = () => {
@@ -835,8 +845,8 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
   const handleResilienceComplete = () => {
     setResilienceDemoActive(false);
     setSherlockLine("That's the resilience layer in action — detection to rebind in seconds, with GSOC in the loop for anything above threshold. Let's get back to your deployment.");
-    markDone(3, "6 fraud rules approved · resilience demo reviewed");
-    later(() => startStage4(), 900);
+    markDone(2, "6 fraud rules approved · resilience demo reviewed");
+    later(() => startDeployment(), 900);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -850,6 +860,8 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
       />
     );
   }
+
+  const stageFocus = stageFocusLabel(stage, pipeline.length > 0, showMap);
 
   return (
     <motion.div
@@ -870,7 +882,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
           <SherlockAvatar state={sherlockStateFrom(processing, justSpoke)} size={40} />
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-white">Sherlock <span className="text-white/30 font-normal">· FraudWatch Implementation Specialist</span></p>
-            <p className="text-[10px] text-[var(--mil-muted)] font-mono">Stage {stage}/{STAGES_META.length} · {STAGE_FOCUS[stage]}</p>
+            <p className="text-[10px] text-[var(--mil-muted)] font-mono">Stage {stage}/{STAGES_META.length} · {stageFocus}</p>
           </div>
           <button onClick={onClose} className="h-7 w-7 rounded-lg bg-[var(--mil-surface)] border border-[var(--mil-border)] flex items-center justify-center text-[var(--mil-muted)] hover:text-white transition-colors">
             <X className="h-3.5 w-3.5" />
@@ -961,7 +973,7 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                           <div className="flex items-center gap-1.5 mb-1">
                             <span className="text-[8px] uppercase tracking-widest text-[#D4AF37]/70 font-semibold">Sherlock is reviewing</span>
                             <span className="text-[8px] text-white/20">·</span>
-                            <span className="text-[8px] uppercase tracking-widest text-white/30">{STAGE_FOCUS[stage]}</span>
+                            <span className="text-[8px] uppercase tracking-widest text-white/30">{stageFocus}</span>
                           </div>
                           <AnimatePresence mode="wait">
                             <motion.p
@@ -995,38 +1007,37 @@ export function FraudWatchAIOnboarding({ onClose, prefilledCarrier }: { onClose:
                         <PredictiveRiskCard insight={predictiveInsight} onContinue={handleContinueFromPredictive} disabled={processing} />
                       )}
 
-                      {/* Agent pipeline (stages 2, 3, 4) */}
-                      {(s.n === 2 || s.n === 3 || s.n === 4) && pipeline.length > 0 && (
+                      {/* Agent pipeline — runs within whichever stage is active
+                          (Stage 1 discovery, Stage 2 config, Stage 3 deploy) */}
+                      {pipeline.length > 0 && (
                         <PipelineView items={pipeline} />
                       )}
 
-                      {/* Stage 2 — integration map */}
-                      {s.n === 2 && showMap && <IntegrationMapCard />}
+                      {/* Stage 1 — integration map, once discovery finishes */}
+                      {s.n === 1 && showMap && <IntegrationMapCard />}
 
-                      {/* Stage 3 — fraud rules */}
-                      {s.n === 3 && fraudRules && <FraudRulesCard rules={fraudRules} />}
+                      {/* Stage 2 — fraud rules */}
+                      {s.n === 2 && fraudRules && <FraudRulesCard rules={fraudRules} />}
 
-                      {/* Stage 3 — rule backtest & impact preview (gates the rest) */}
-                      {s.n === 3 && backtest && (
-                        <RuleBacktestCard backtest={backtest} acknowledged={backtestAck} onAcknowledge={handleBacktestAck} />
+                      {/* Stage 2 — impact preview + driver verification, combined
+                          into one output (gates the rest) */}
+                      {s.n === 2 && backtest && (
+                        <ImpactPreviewCard backtest={backtest} drivers={DRIVERS} acknowledged={backtestAck} onAcknowledge={handleBacktestAck} />
                       )}
 
-                      {/* Stage 3 — driver verification roster (after backtest ack) */}
-                      {s.n === 3 && driverRoster && <DriverRosterCard drivers={driverRoster} />}
-
-                      {/* Stage 3 — Autonomous Carrier Resilience: offer + demo */}
-                      {s.n === 3 && resilienceOffer && (
+                      {/* Stage 2 — Autonomous Carrier Resilience: offer + demo */}
+                      {s.n === 2 && resilienceOffer && (
                         <ResilienceOfferCard onShow={handleResilienceShow} onSkip={handleResilienceSkip} />
                       )}
-                      {s.n === 3 && resilienceDemoActive && (
+                      {s.n === 2 && resilienceDemoActive && (
                         <CarrierResilienceDemo onComplete={handleResilienceComplete} onNarrate={setSherlockLine} />
                       )}
 
-                      {/* Stage 4 — pre-deploy checks */}
-                      {s.n === 4 && preChecks && <PreDeployCard checks={preChecks} />}
+                      {/* Stage 3 — pre-deploy checks */}
+                      {s.n === 3 && preChecks && <PreDeployCard checks={preChecks} />}
 
-                      {/* Stage 4 — go-live card */}
-                      {s.n === 4 && isLive && <GoLiveCard />}
+                      {/* Stage 3 — go-live card */}
+                      {s.n === 3 && isLive && <GoLiveCard />}
 
                       {/* Gate (any active stage) */}
                       {gate && !gate.approved && (
@@ -1118,7 +1129,7 @@ function FraudWatchLanding({ prefilledCarrier, onStart, onClose }: {
                         <strong className="text-[#00c2b2]">{prefilledCarrier}</strong> into FraudWatch.
                       </p>
                       <p className="text-sm text-white/70 mt-1 leading-relaxed">
-                        Four guided stages, just a few minutes. Ready when you are.
+                        Three guided stages, just a few minutes. Ready when you are.
                       </p>
                     </>
                   ) : (
@@ -1152,7 +1163,7 @@ function FraudWatchLanding({ prefilledCarrier, onStart, onClose }: {
                     <p className="text-sm font-semibold text-white truncate">
                       {prefilledCarrier ? `Onboard ${prefilledCarrier}` : "Guided Carrier Onboarding"}
                     </p>
-                    <p className="text-[10px] font-medium text-[#00c2b2]">4-Stage Agentic Setup</p>
+                    <p className="text-[10px] font-medium text-[#00c2b2]">3-Stage Agentic Setup</p>
                   </div>
                 </div>
                 <p className="text-[11px] text-white/50 leading-relaxed mb-3">
@@ -1461,62 +1472,6 @@ const BG_CHECK_STYLES: Record<DriverProfile["backgroundCheck"], string> = {
   flagged: "text-red-300 border-red-500/30 bg-red-500/10",
 };
 
-function DriverRosterCard({ drivers }: { drivers: DriverProfile[] }) {
-  const flagged = drivers.filter(d => d.gsocMatch).length;
-  return (
-    <div className={cn("rounded-lg overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(24,28,31,0.45)" }}>
-      <div className="px-3 py-2 border-b border-[var(--mil-border)] flex items-center gap-2">
-        <IdCard className="h-3 w-3 text-[#00c2b2]" />
-        <span className="text-[10px] font-semibold text-white">Driver Verification</span>
-        <span className="ml-auto text-[9px] text-[var(--mil-muted)] font-mono">sample 5 of 347 discovered</span>
-      </div>
-
-      {flagged > 0 && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/8 border-b border-red-500/15">
-          <BadgeAlert className="h-3 w-3 text-red-400 shrink-0" />
-          <p className="text-[9px] text-red-300">{flagged} driver{flagged > 1 ? "s" : ""} matched the GSOC watchlist — hold recommended</p>
-        </div>
-      )}
-
-      {drivers.map(d => (
-        <div key={d.id} className="px-3 py-2 border-b border-[var(--mil-border)] last:border-0">
-          <div className="flex items-center gap-2.5">
-            <div className={cn(
-              "h-7 w-7 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0",
-              d.gsocMatch ? "bg-red-500/20 text-red-300 border border-red-500/40" : "bg-[#00c2b2]/15 text-[#00c2b2] border border-[#00c2b2]/30"
-            )}>
-              {d.name.split(" ").map(p => p[0]).join("")}
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <p className="text-[11px] font-medium text-white truncate">{d.name}</p>
-                <span className={cn("text-[7px] font-bold px-1 py-0.5 rounded border uppercase shrink-0", BG_CHECK_STYLES[d.backgroundCheck])}>
-                  {d.backgroundCheck}
-                </span>
-              </div>
-              <p className="text-[9px] text-[var(--mil-muted)]"><span className="font-mono">CDL {d.cdl}</span> · <span className="font-mono">{d.yearsExperience}</span> yr{d.yearsExperience !== 1 ? "s" : ""} exp · {d.lastActive}</p>
-            </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="flex items-center gap-1" title="Safety score">
-                <Gauge className={cn("h-3 w-3", d.safetyScore >= 85 ? "text-emerald-400" : d.safetyScore >= 70 ? "text-amber-400" : "text-red-400")} />
-                <span className="text-[9px] font-bold text-white/70 font-mono">{d.safetyScore}</span>
-              </div>
-              <Fingerprint className={cn("h-3 w-3", d.biometricVerified ? "text-emerald-400" : "text-white/15")} />
-              <Phone className={cn("h-3 w-3", d.phoneVerified ? "text-emerald-400" : "text-white/15")} />
-            </div>
-          </div>
-          {d.gsocMatch && (
-            <div className="mt-1.5 ml-10 flex items-start gap-1.5 rounded-md bg-red-500/8 px-2 py-1">
-              <AlertTriangle className="h-2.5 w-2.5 text-red-400 shrink-0 mt-0.5" />
-              <p className="text-[9px] text-red-300 leading-relaxed">{d.gsocMatch}</p>
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ── Autonomous Carrier Resilience — offer card ────────────────────────────────
 
 function ResilienceOfferCard({ onShow, onSkip }: { onShow: () => void; onSkip: () => void }) {
@@ -1735,10 +1690,12 @@ function FraudRulesCard({ rules }: { rules: FraudRule[] }) {
   );
 }
 
-// ── Rule Backtest & Impact Preview ────────────────────────────────────────────
-// Historical replay of the generated rules against the confirmed 90-day
-// shipment history — projected catches vs. false flags vs. friction, shown
-// before deployment approval. Not a "Digital Twin" (see data note above).
+// ── Impact Preview & Driver Verification ──────────────────────────────────────
+// One combined output instead of two stacked cards: the rule backtest (a
+// historical replay of the generated rules against the confirmed 90-day
+// shipment history — projected catches vs. false flags vs. friction) and
+// driver-level verification for the active roster, reviewed together before
+// deployment approval. Not a "Digital Twin" (see data note above).
 
 const SEV_BADGE: Record<string, string> = {
   critical: "text-red-400 border-red-500/20 bg-red-500/5",
@@ -1762,21 +1719,23 @@ function BacktestStat({ icon: Icon, label, value, tone }: {
   );
 }
 
-function RuleBacktestCard({ backtest, acknowledged, onAcknowledge }: {
+function ImpactPreviewCard({ backtest, drivers, acknowledged, onAcknowledge }: {
   backtest: BacktestSummary;
+  drivers: DriverProfile[];
   acknowledged: boolean;
   onAcknowledge: () => void;
 }) {
   const [showTuning, setShowTuning] = useState(false);
   const { perRule, totalTriggered, totalFP, confirmedFraud, precision, flagged, weightedHoldHours } = backtest;
   const otherHighRisk = backtest.totalTP - confirmedFraud;
+  const flaggedDrivers = drivers.filter(d => d.gsocMatch).length;
 
   return (
     <div className={cn("rounded-lg overflow-hidden", GLASS_NEUTRAL)} style={{ background: "rgba(24,28,31,0.45)" }}>
       {/* Header */}
       <div className="px-3 py-2 border-b border-[var(--mil-border)] flex items-center gap-2">
         <History className="h-3 w-3 text-[#00c2b2]" />
-        <span className="text-[10px] font-semibold text-white">Rule Backtest &amp; Impact Preview</span>
+        <span className="text-[10px] font-semibold text-white">Impact Preview &amp; Driver Verification</span>
         <span className="ml-auto text-[9px] text-[var(--mil-muted)] font-mono">{BACKTEST_WINDOW_DAYS}-day replay · {totalTriggered} loads flagged</span>
       </div>
 
@@ -1862,21 +1821,71 @@ function RuleBacktestCard({ backtest, acknowledged, onAcknowledge }: {
         </div>
       ))}
 
-      {/* Acknowledgement gate — required before driver verification + deployment */}
+      {/* Driver Verification — same output, one card, no separate reveal step */}
+      <div className="px-3 py-2 border-y border-[var(--mil-border)] bg-black/10 flex items-center gap-2">
+        <IdCard className="h-3 w-3 text-[#00c2b2]" />
+        <span className="text-[10px] font-semibold text-white">Driver Verification</span>
+        <span className="ml-auto text-[9px] text-[var(--mil-muted)] font-mono">sample {drivers.length} of 347 discovered</span>
+      </div>
+
+      {flaggedDrivers > 0 && (
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-red-500/8 border-b border-red-500/15">
+          <BadgeAlert className="h-3 w-3 text-red-400 shrink-0" />
+          <p className="text-[9px] text-red-300">{flaggedDrivers} driver{flaggedDrivers > 1 ? "s" : ""} matched the GSOC watchlist — hold recommended</p>
+        </div>
+      )}
+
+      {drivers.map(d => (
+        <div key={d.id} className="px-3 py-2 border-b border-[var(--mil-border)] last:border-0">
+          <div className="flex items-center gap-2.5">
+            <div className={cn(
+              "h-7 w-7 rounded-full flex items-center justify-center text-[9px] font-bold shrink-0",
+              d.gsocMatch ? "bg-red-500/20 text-red-300 border border-red-500/40" : "bg-[#00c2b2]/15 text-[#00c2b2] border border-[#00c2b2]/30"
+            )}>
+              {d.name.split(" ").map(p => p[0]).join("")}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <p className="text-[11px] font-medium text-white truncate">{d.name}</p>
+                <span className={cn("text-[7px] font-bold px-1 py-0.5 rounded border uppercase shrink-0", BG_CHECK_STYLES[d.backgroundCheck])}>
+                  {d.backgroundCheck}
+                </span>
+              </div>
+              <p className="text-[9px] text-[var(--mil-muted)]"><span className="font-mono">CDL {d.cdl}</span> · <span className="font-mono">{d.yearsExperience}</span> yr{d.yearsExperience !== 1 ? "s" : ""} exp · {d.lastActive}</p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-1" title="Safety score">
+                <Gauge className={cn("h-3 w-3", d.safetyScore >= 85 ? "text-emerald-400" : d.safetyScore >= 70 ? "text-amber-400" : "text-red-400")} />
+                <span className="text-[9px] font-bold text-white/70 font-mono">{d.safetyScore}</span>
+              </div>
+              <Fingerprint className={cn("h-3 w-3", d.biometricVerified ? "text-emerald-400" : "text-white/15")} />
+              <Phone className={cn("h-3 w-3", d.phoneVerified ? "text-emerald-400" : "text-white/15")} />
+            </div>
+          </div>
+          {d.gsocMatch && (
+            <div className="mt-1.5 ml-10 flex items-start gap-1.5 rounded-md bg-red-500/8 px-2 py-1">
+              <AlertTriangle className="h-2.5 w-2.5 text-red-400 shrink-0 mt-0.5" />
+              <p className="text-[9px] text-red-300 leading-relaxed">{d.gsocMatch}</p>
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Acknowledgement gate — required before deployment */}
       {!acknowledged ? (
         <div className="px-3 py-2.5 border-t border-[var(--mil-border)]">
           <button
             onClick={onAcknowledge}
             className="w-full py-2 rounded-lg bg-[#00c2b2] text-black text-[11px] font-bold hover:bg-[#00d9c7] transition-colors"
           >
-            I&apos;ve reviewed the impact — continue
+            I&apos;ve reviewed the impact &amp; drivers — continue
           </button>
-          <p className="text-[8px] text-white/30 text-center mt-1.5">Reviewing projected impact is required before driver verification and deployment.</p>
+          <p className="text-[8px] text-white/30 text-center mt-1.5">Reviewing projected impact and driver verification is required before deployment.</p>
         </div>
       ) : (
         <div className="flex items-center gap-1.5 px-3 py-2 border-t border-emerald-500/15 bg-emerald-500/5">
           <CheckCircle2 className="h-3 w-3 text-emerald-400 shrink-0" />
-          <span className="text-[9px] text-emerald-300">Impact reviewed · rule set carried into deployment</span>
+          <span className="text-[9px] text-emerald-300">Impact &amp; drivers reviewed · rule set carried into deployment</span>
         </div>
       )}
     </div>

@@ -25,7 +25,7 @@ const APPS = [
     icon: Eye,
     title: "Fraud Watch",
     tagline: "Carrier risk & agentic onboarding",
-    desc: "Carrier risk dashboard with Sherlock, the FraudWatch AI specialist — drag a carrier in and he runs a 4-stage onboarding that deploys fraud rules automatically.",
+    desc: "Carrier risk dashboard with Sherlock, the FraudWatch AI specialist — drag a carrier in and he runs a 3-stage onboarding that deploys fraud rules automatically.",
     href: "/fraud-watch",
     color: "#00c2b2",
     bg: "bg-[#00c2b2]/10",
