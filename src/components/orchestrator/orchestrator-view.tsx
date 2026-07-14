@@ -9,6 +9,7 @@ import {
   GitBranch,
   Users, TrendingDown, Clock,
   ArrowRight, Sparkles, Server,
+  Eye, ShieldAlert, Thermometer, MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -63,22 +64,35 @@ const MOCK_TMS = {
   eta: "Jan 15 — 22:00 CST",
   delayEvents: ["Missed 14:00 departure window"],
   vehicleStatus: "Staged — awaiting load",
+  laneRisk: "Elevated — night run",
   transportCost: "$3,840",
 };
 
+// Overhaul is a visibility & cargo-security platform, so the Decision Agent's
+// synthesis is framed as an Overhaul output: it correlates the source systems
+// AND reads the in-transit risk picture (live tracking, lane theft-risk,
+// cold-chain) the way the rest of the platform does, rather than stopping at
+// a generic warehouse-ops root cause.
 const MOCK_DECISION = {
   rootCause:
-    "Dock equipment failure at Dock 7-B caused a 95-minute loading delay, resulting in the carrier missing the allocated 14:00 departure window.",
+    "Overhaul correlated a WMS exception with live carrier telemetry: a Dock 7-B equipment failure drove a 95-minute loading delay, so Swift Logistics missed the 14:00 departure. The $284,500 pharma load is now staged for an after-dark run on the Chicago → Nashville lane.",
   businessImpact:
-    "4-hour delivery delay affecting a PLATINUM SLA customer ($284,500 shipment). Risk of SLA breach and potential penalty of up to $28,000.",
+    "PLATINUM SLA at risk (~$28,000 penalty) on a 4-hour delay. In Overhaul's read, the night departure also lifts in-transit theft risk on this lane from Low to Elevated and narrows the cold-chain window on temperature-sensitive pharma.",
   recommendations: [
-    "Notify Nexus Pharmaceuticals customer success team immediately",
-    "Reassign load to Dock 9-A (currently available)",
-    "Request Swift Logistics to hold next available departure slot",
-    "Update ETA to 22:00 CST across ERP, TMS and customer portal",
-    "Escalate Dock 7-B equipment failure to Facility Management",
+    "Share a live Overhaul tracking link with Nexus Pharmaceuticals' customer success team",
+    "Flag the load to GSOC for in-transit watch — high value, night departure, elevated lane risk",
+    "Reassign the load to Dock 9-A and reslot the next Swift departure",
+    "Publish a risk-scored dynamic ETA (22:00 CST) across ERP, TMS and the customer portal",
+    "Enable continuous cold-chain and geofence monitoring for the run",
   ],
   confidence: 96,
+  // Overhaul's live visibility read on this shipment — surfaced alongside the
+  // root-cause/impact so the insight is unmistakably an Overhaul output.
+  visibilitySignals: [
+    { icon: MapPin,      label: "Live Tracking",   value: "Active",   detail: "GPS + carrier telemetry",   tone: "ok"   as const },
+    { icon: ShieldAlert, label: "In-Transit Risk", value: "Elevated", detail: "Night run · high-value pharma", tone: "warn" as const },
+    { icon: Thermometer, label: "Cold Chain",      value: "In range", detail: "2–8°C · window tightening",  tone: "warn" as const },
+  ],
   timeline: [
     { time: "12:15", event: "Picking completed", severity: "ok" },
     { time: "13:05", event: "Packing completed", severity: "ok" },
@@ -449,6 +463,7 @@ export function OrchestratorView() {
       setDecisionStatus("complete");
       setPhase("decision");
       addEvent({ agent: "Decision Agent", agentColor: "text-[#00c2b2]", message: "Root cause identified · Confidence 96% · 5 recommendations generated", status: "success" });
+      addEvent({ agent: "Overhaul Visibility", agentColor: "text-[#00c2b2]", message: "In-transit risk raised Low → Elevated · GSOC watch recommended · cold-chain window flagged", status: "success" });
     });
 
     t(T.finalResponse, () => {
@@ -709,8 +724,8 @@ export function OrchestratorView() {
                 { label: "Carrier", value: MOCK_TMS.carrier },
                 { label: "Driver", value: MOCK_TMS.driver },
                 { label: "Route", value: MOCK_TMS.plannedRoute },
-                { label: "Vehicle Status", value: MOCK_TMS.vehicleStatus, highlight: true },
                 { label: "New ETA", value: MOCK_TMS.eta, highlight: true },
+                { label: "Lane Risk", value: MOCK_TMS.laneRisk, highlight: true },
                 { label: "Delay Event", value: MOCK_TMS.delayEvents[0] },
               ]}
             />
@@ -809,6 +824,27 @@ export function OrchestratorView() {
                   transition={{ duration: 0.4 }}
                   className="p-4"
                 >
+                  {/* Overhaul Visibility — live signals on the shipment */}
+                  <div className="mb-4 rounded-xl border border-[#00c2b2]/20 bg-[#00c2b2]/5 p-3">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Eye className="h-4 w-4 text-[#00c2b2] shrink-0" />
+                      <p className="text-[10px] font-semibold uppercase tracking-widest text-[#00c2b2]">Overhaul Visibility</p>
+                      <span className="text-[9px] text-white/30">· live signals on this shipment</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      {MOCK_DECISION.visibilitySignals.map((s) => (
+                        <div key={s.label} className="flex items-start gap-2 rounded-lg border border-white/8 bg-white/2 px-3 py-2">
+                          <s.icon className={cn("h-3.5 w-3.5 shrink-0 mt-0.5", s.tone === "ok" ? "text-emerald-400" : "text-amber-400")} />
+                          <div className="min-w-0">
+                            <p className="text-[9px] uppercase tracking-wide text-white/35">{s.label}</p>
+                            <p className={cn("text-xs font-semibold", s.tone === "ok" ? "text-emerald-300" : "text-amber-300")}>{s.value}</p>
+                            <p className="text-[9px] text-white/40 leading-tight">{s.detail}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-[1fr_1fr_1.4fr] gap-4 mb-4">
                     {/* Root Cause */}
                     <div className="rounded-xl border border-red-500/20 bg-red-500/5 p-4">
@@ -880,10 +916,10 @@ export function OrchestratorView() {
                   <div className="flex items-center gap-2 mt-3">
                     <p className="text-[10px] text-white/25 mr-1">Execute actions:</p>
                     {[
-                      { label: "Notify Customer", color: "bg-blue-600 hover:bg-blue-500" },
-                      { label: "Reassign Dock", color: "bg-amber-600 hover:bg-amber-500" },
+                      { label: "Share Tracking Link", color: "bg-blue-600 hover:bg-blue-500" },
+                      { label: "GSOC Watch", color: "bg-red-600 hover:bg-red-500" },
                       { label: "Update ETA", color: "bg-[#00c2b2] hover:bg-[#00a89a]" },
-                      { label: "Escalate Issue", color: "bg-red-600 hover:bg-red-500" },
+                      { label: "Reassign Dock", color: "bg-amber-600 hover:bg-amber-500" },
                     ].map((a) => (
                       <button key={a.label} className={cn(
                         "text-xs px-3 py-1.5 rounded-lg text-white font-medium transition-colors", a.color
