@@ -9,6 +9,7 @@ import {
   CheckCircle2, ExternalLink, Search, Clock, Sparkles,
   Book, Scale, BarChart3, Package, ArrowRight, Check,
   TrendingUp, Database, MessageSquare,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -41,14 +42,14 @@ interface DocSource {
   relevance: number;
   preview: string;
   color: string;
-  icon: React.ComponentType<{ className?: string }>;
+  icon: LucideIcon;
 }
 
 interface RAGResponse {
   answer: string;
   confidence: number;
   sources: DocSource[];
-  related: { title: string; section: string; icon: React.ComponentType<{ className?: string }> }[];
+  related: { title: string; section: string; icon: LucideIcon }[];
   followups: string[];
 }
 

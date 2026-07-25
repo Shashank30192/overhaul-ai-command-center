@@ -7,7 +7,8 @@ import {
   Zap, Shield, Activity, Package, Truck, Warehouse, Globe, Wifi,
   Brain, ArrowRight, TrendingUp, Clock, Database, Radio,
   CloudRain, ChevronRight, RefreshCw, Eye, Lock, Server,
-  AlertCircle, BarChart3, Map, FileText, Layers, Target
+  AlertCircle, BarChart3, Map, FileText, Layers, Target,
+  type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -19,7 +20,7 @@ interface AgentStep { label: string; duration: number; log: string; }
 
 interface Agent {
   id: string; name: string; role: string; color: string;
-  Icon: React.ComponentType<{ className?: string }>;
+  Icon: LucideIcon;
   steps: AgentStep[];
   status: AgentStatus; currentStep: number; progress: number; logs: string[];
   startDelay: number;
