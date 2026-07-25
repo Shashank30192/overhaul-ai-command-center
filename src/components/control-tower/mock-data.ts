@@ -171,7 +171,7 @@ function generate(): Shipment[] {
     const status = weightedPick(STATUSES, STATUS_WEIGHTS, rng);
     const isDelayed = status === 'delayed' || status === 'at_risk' || status === 'exception';
     const delayH = isDelayed ? rng.int(1, 18) : 0;
-    const riskScore = status === 'critical' ? rng.int(80, 99)
+    const riskScore = status === 'exception' ? rng.int(80, 99)
       : status === 'at_risk' ? rng.int(60, 79)
       : status === 'delayed' ? rng.int(40, 65)
       : rng.int(5, 35);
